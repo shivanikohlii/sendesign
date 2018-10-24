@@ -1,6 +1,7 @@
 #ifndef APP_DELEGATE_H_
 #define APP_DELEGATE_H_
 #include "cocos2d.h"
+#include "ui/CocosGUI.h"
 
 struct AppDelegate : private cocos2d::Application {
     AppDelegate();

@@ -1,10 +1,13 @@
 #include "AppDelegate.h"
 
+typedef uint64_t u64;
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "libraries/stb_image.h"
 
 #include "modules/dynamic_array.cpp"
 #include "modules/random.cpp"
+#include "modules/hash_table.cpp"
 
 // Note: This will put the cocos2d library into the global namespace:      USING_NS_CC;
 
@@ -32,6 +35,8 @@ bool fullscreen = false;
 Input_Button key[256] = {};
 Dynamic_Array<unsigned char> keys_just_pressed;
 cocos2d::Scene *main_scene = NULL;
+cocos2d::Layer *game_layer = NULL;
+cocos2d::Layer *screen_layer = NULL;
 
 #include "CSP.cpp"
 
@@ -193,11 +198,16 @@ struct Main_Scene : cocos2d::Scene {
     return initialize();
   }
   void update(float dt) {
+    void reset_ui();
+    void cleanup_unused_ui_elements();
+    
+    reset_ui();
     main_loop(dt);
     reset_inputs();
+    cleanup_unused_ui_elements();
   }
   void draw(cocos2d::Renderer *renderer, const cocos2d::Mat4 &transform, uint32_t parent_flags) {
-    cocos2d::DrawPrimitives::drawRect(cocos2d::Vec2(0.0f, 0.0f), cocos2d::Vec2(100.0f, 100.0f));
+    //cocos2d::DrawPrimitives::drawRect(cocos2d::Vec2(0.0f, 0.0f), cocos2d::Vec2(100.0f, 100.0f));
   }
 #if 0
   void draw(cocos2d::Renderer *renderer, const cocos2d::Mat4 &transform, uint32_t parentFlags) {

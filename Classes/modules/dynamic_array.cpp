@@ -65,11 +65,9 @@ public:
     }
     return false;
   }
-  inline bool set_length(int new_length, bool zero_new_items = false) {
+  inline bool set_length(int new_length) {
     if (length == new_length) return false;
     resize(new_length);
-    if (zero_new_items && new_length > length)
-      zero_memory(data + length, (new_length - length)*size_of(T));
     length = new_length;
     return true;
   }

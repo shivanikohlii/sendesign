@@ -1,3 +1,3 @@
 Steps Before Building:
-1. Put the cocos2d folder in the root directory of the project (This is just the folder with all of the components of the cocos2d library, I'll post a link to download it later).
-2. Put the Resources folder in the root directory of the project (This just contains all of the assets for the game. I'll post a link with this later).
+1. Put the cocos2d folder in the root directory of the project (This is just the folder with all of the components of the cocos2d library, Link: https://drive.google.com/open?id=1cD0E3U8KAYiHiywQ-qBEfHmJ81Xt9Ua-)
+2. Put the Resources folder in the root directory of the project (This just contains all of the assets for the game. Link: https://drive.google.com/open?id=1vuqr8YBRaWQfCG6txSIH97UMIcvQ5lau)
