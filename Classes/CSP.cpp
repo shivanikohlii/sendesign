@@ -1,11 +1,15 @@
+//
+// Entity System:
+//
+
 struct Entity {
-	cocos2d::Sprite *sprite;
-	int texture;
-	int manager_index;
-	float x;
-	float y;
-	float w;
-	float h;
+  cocos2d::Sprite *sprite;
+  int texture;
+  int manager_index;
+  float x;
+  float y;
+  float w;
+  float h;
 };
 Dynamic_Array<Entity *> entity_manager;
 Dynamic_Array<cocos2d::Texture2D *> textures;
@@ -43,6 +47,78 @@ void ordered_delete_entity(Entity *e) { // Call this if you don't want the entit
   free(e);
 }
 
+//
+// Getting Files From Directory:
+//
+
+#ifdef _WIN32
+void get_filenames_in_directory(char *directory, Dynamic_Array<char *> *result) {
+  char dir_str[256]; //@MEMORY: We can only have 256 character directories from this.
+  snprintf(dir_str, sizeof(dir_str), "%s/*", directory);
+  WIN32_FIND_DATAA file_info = {};
+  HANDLE handle = FindFirstFileA(dir_str, &file_info);
+  if (handle == INVALID_HANDLE_VALUE) {
+    printf("Error opening when getting filenames in directory: %s.\n", directory);
+    FindClose(handle);
+    return;
+  }
+  for (int i = 0;; i++) {
+    if (file_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+      if (!FindNextFileA(handle, &file_info)) break;
+      continue;
+    }
+    char *str = (char *)malloc(strlen(file_info.cFileName) + 1);
+    strcpy(str, file_info.cFileName);
+    result->add(str);
+    if (!FindNextFileA(handle, &file_info)) break;
+  }
+  FindClose(handle);
+}
+#else // Not Windows, This is for Linux:
+#if 0
+#include <ctime>
+#include <dirent.h>
+#include <sys/stat.h>
+#endif
+//NOTE: This Code Has Not Been Tested:
+void get_filenames_in_directory(char *directory, Dynamic_Array<char *> *result) {
+  dirent *ent = 0;
+  struct stat st;
+  DIR *dir = opendir(directory);
+  char full_filename[512]; //@MEMORY: Full Filenames Can Only Have a Max Size of 512 Characters
+  while ((ent = readdir(dir)) != 0) {
+    char *filename = ent->d_name;
+    if (filename[0] == '.') continue;
+    snprintf(full_filename, sizeof(full_filename), "%s/%s", directory, filename);
+    if (stat(full_filename, &st) == -1) continue;
+    bool is_dir = (st.st_mode & S_IFDIR) != 0;
+    if (is_dir) continue;
+    char *str = (char *)malloc(strlen(filename) + 1);
+    strcpy(str, filename);
+    result->add(str);
+  }
+  closedir(dir);
+}
+#endif
+
+//
+// String Stuff:
+//
+
+char *get_file_extension(char *filename) {
+  int last_index = -1;
+  for (int i = 0; filename[i] != 0; i++) {
+    if (filename[i] == '.') last_index = i;
+  }
+  if (last_index == -1) return "";
+  else return filename + last_index + 1;
+}
+
+
+//
+// Texture System:
+//
+
 cocos2d::Texture2D *make_texture(char *name) {
   char filename[256];
   sprintf(filename, "bitmaps/%s", name);
@@ -58,6 +134,44 @@ cocos2d::Texture2D *make_texture(char *name) {
   return texture;
 }
 
+//
+// Sound System:
+//
+
+Dynamic_Array<char *> sounds;
+Dynamic_Array<char *> songs;
+int load_music(char *name) {
+  std::string filename = "music/";
+  filename.append(name);
+  cocos2d::experimental::AudioEngine::preload(filename);
+  char *c_filename = (char *)malloc(filename.length() + 1);
+  strcpy(c_filename, filename.c_str());
+  songs.add(c_filename);
+  return songs.length - 1;
+}
+int load_sound(char *name) {
+  std::string filename = "sounds/";
+  filename.append(name);
+  cocos2d::experimental::AudioEngine::preload(filename);
+  char *c_filename = (char *)malloc(filename.length() + 1);
+  strcpy(c_filename, filename.c_str());
+  sounds.add(c_filename);
+  return sounds.length - 1;
+}
+void play_music(int music_index, bool loop = true) {
+  assert(music_index >= 0);
+  assert(music_index < songs.length);
+  cocos2d::experimental::AudioEngine::play2d(songs[music_index], loop);
+}
+void play_sound(int sound_index, bool loop = false) {
+  assert(sound_index >= 0);
+  assert(sound_index < sounds.length);
+  cocos2d::experimental::AudioEngine::play2d(sounds[sound_index], loop);
+}
+
+//
+// Game Startup Code:
+//
 
 void problem_loading(char *msg) {
 #if DEBUG
@@ -89,13 +203,26 @@ bool initialize() {
 
   make_texture("sun.png");
 
-  cocos2d::experimental::AudioEngine::preload("music/night.mp3");
+  // Load All Sounds in the sounds directory:
+  Dynamic_Array<char *> sound_filenames;
+  get_filenames_in_directory("sounds", &sound_filenames);
+  for (int i = 0; i < sound_filenames.length; i++) {
+    if (strcmp(get_file_extension(sound_filenames[i]), "mp3") == 0) {
+      OutputDebugStringA(sound_filenames[i]);
+      load_sound(sound_filenames[i]);
+    }
+    free(sound_filenames[i]);
+  }
+  load_music("night.mp3");
+  play_music(0);
 
-  
+#if 0
+  cocos2d::experimental::AudioEngine::preload("music/night.mp3");
 
   cocos2d::experimental::AudioEngine::play2d("music/night.mp3", true);
   cocos2d::experimental::AudioEngine::preload("sounds/place.mp3"); // NOTE: For some reason, this won't work for .wav files. Not sure if they're supported, but they're a much better format to use for sound effects.
                                                                    // TODO: Figure out if they're supported, if not we may want to consider supporting it ourselves...
+#endif
   
   Entity e = {};
   e.w = e.h = 100.0f;
@@ -105,6 +232,10 @@ bool initialize() {
   main_scene->scheduleUpdate();
   return true;
 }
+
+//
+// Math Stuff (Might Remove):
+//
 
 struct V2 {float x, y;};
 struct MRect {
@@ -147,6 +278,10 @@ inline V2 screen_to_world(V2 v, MRect view1 = view) {
   return v2(view1.x + view.w/2.0f*scale_x + v.x/scale_x,
 	    view1.y + view.h/2.0f*scale_y + v.y/scale_y);
 }
+
+//
+// UI Library (Will Definitely be Changed/Removed):
+//
 
 enum UI_Type {
   UI_BUTTON = 0, UI_TEXTFIELD = 1, NUM_UI_TYPES = 2
@@ -267,7 +402,7 @@ bool button(char *name) {
     b->setTitleColor(cocos2d::ccColor3B(0, 0, 0));
     b->setTouchEnabled(true);
     b->addTouchEventListener(button_listener);
-	b->setTitleFontName("Marker Felt");
+    b->setTitleFontName("Marker Felt");
     //b->setTitleFontName("fonts/arial.ttf");
     b->setTitleFontSize(UI_ITEM_SIZE);
     b->setColor(cocos2d::ccColor3B(214, 90, 50));
@@ -299,8 +434,8 @@ bool text_field(char *name) {
     cocos2d::ui::Scale9Sprite *s = cocos2d::ui::Scale9Sprite::create("ui/textbox.png", cocos2d::Rect(2.0f, 2.0f, 252.0f, 124.0f));
     cocos2d::ui::EditBox *t = cocos2d::ui::EditBox::create(cocos2d::Size(UI_ITEM_SIZE*2.0f, UI_ITEM_SIZE), s); //@CHANGE
     t->setInputMode(cocos2d::ui::EditBox::InputMode::SINGLE_LINE);
-	t->setFontColor(cocos2d::Color3B(0, 0, 0));
-	//t->setFontSize(UI_ITEM_SIZE);
+    t->setFontColor(cocos2d::Color3B(0, 0, 0));
+    //t->setFontSize(UI_ITEM_SIZE);
     
     item.textfield = t;
     item.ui_type = UI_TEXTFIELD;
@@ -313,6 +448,10 @@ bool text_field(char *name) {
   
   return false;
 }
+
+//
+// Main Loop (This Gets Called Every Frame (~16 MS)):
+//
 
 void main_loop(float dt) {
   static float time_elapsed = 0.0f;
@@ -370,15 +509,11 @@ void main_loop(float dt) {
       OutputDebugStringA("Hello Sailor!\n");
     }
   }
-  char buffer[128] = {};
-  for (int i = 0; i < 4; i++) {
-    sprintf(buffer, "YO %i", i);
-    if (button(buffer)) {
-      OutputDebugStringA(buffer);
+
+  for (int i = 0; i < sounds.length; i++) {
+    if (button(sounds[i])) {
+      play_sound(i);
     }
-  }
-  if (button("button1")) {
-	  //...
   }
 
   text_field("Sup");
@@ -389,7 +524,7 @@ void main_loop(float dt) {
     e.w = e.h = rand_float()*130.0f;
     e.x = world_mouse.x - e.w/2.0f;
     e.y = world_mouse.y - e.h/2.0f;
-    cocos2d::experimental::AudioEngine::play2d("sounds/place.mp3");
+    //play_sound(0);
     create_entity(&e);
   }
   if (mouse.right.just_pressed) { // Remove Entity:
