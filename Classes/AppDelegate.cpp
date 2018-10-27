@@ -1,6 +1,17 @@
 #include "AppDelegate.h"
 
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
 typedef uint64_t u64;
+
+typedef float f32;
+typedef double f64;
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "libraries/stb_image.h"
@@ -113,67 +124,7 @@ void on_key_released(KeyCode key_code, cocos2d::Event *event) {
 //
 // Main Scene, Necessary to Interface With Cocos:
 //
-GLuint _glProgram = 0;
-GLuint _vbo1 = 0, _vbo2 = 0;
-GLuint _vao = 0;
-USING_NS_CC;
 
-void init_opengl() {
-  auto program = GLProgram::createWithFilenames("shaders/basic_shader_vert.glsl", "shaders/basic_shader_frag.glsl");
-
-  auto glProgramState = GLProgramState::create(program);
-  main_scene->setGLProgramState(glProgramState);
-
-  CHECK_GL_ERROR_DEBUG();
-
-  auto size = Director::getInstance()->getWinSize();
-
-  GLfloat vertices[] = {
-
-    90,30,
-    size.width - 90, 30,
-    size.width / 2, size.width - 180
-
-  };
-	
-  GLfloat colors[] = {
-
-    1, 0, 0, 1,
-    0, 1, 0, 1,
-    0, 0, 1, 1
-
-  };
-
-  glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-  glEnable(GL_POLYGON_SMOOTH);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-  glGenVertexArrays(1, &_vao);
-
-  glGenBuffers(1, &_vbo1);
-  glGenBuffers(1, &_vbo2);
-
-
-  glBindVertexArray(_vao);
-
-  glBindBuffer(GL_ARRAY_BUFFER, _vbo1);
-
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-  glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
-  glEnableVertexAttribArray(GLProgram::VERTEX_ATTRIB_POSITION);
-
-  glBindBuffer(GL_ARRAY_BUFFER, _vbo2);
-
-  glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
-  glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_COLOR, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
-  glEnableVertexAttribArray(GLProgram::VERTEX_ATTRIB_COLOR);
-
-  glBindVertexArray(0);
-
-
-  CHECK_GL_ERROR_DEBUG();
-}
 struct Main_Scene : cocos2d::Scene {
   static cocos2d::Scene* createScene() {
     return Main_Scene::create();
@@ -192,8 +143,6 @@ struct Main_Scene : cocos2d::Scene {
     keyboard_listener->onKeyPressed = on_key_pressed;
     keyboard_listener->onKeyReleased = on_key_released;
     _eventDispatcher->addEventListenerWithFixedPriority(keyboard_listener, 1);
-
-    init_opengl();
     
     return initialize();
   }
@@ -206,27 +155,6 @@ struct Main_Scene : cocos2d::Scene {
     reset_inputs();
     cleanup_unused_ui_elements();
   }
-  void draw(cocos2d::Renderer *renderer, const cocos2d::Mat4 &transform, uint32_t parent_flags) {
-    //cocos2d::DrawPrimitives::drawRect(cocos2d::Vec2(0.0f, 0.0f), cocos2d::Vec2(100.0f, 100.0f));
-  }
-#if 0
-  void draw(cocos2d::Renderer *renderer, const cocos2d::Mat4 &transform, uint32_t parentFlags) {
-    Layer::draw(renderer, transform, parentFlags);
-    CustomCommand *_customCommand = new CustomCommand();
-    _customCommand->init(_globalZOrder, transform, parentFlags);
-    _customCommand->func = CC_CALLBACK_0(HelloWorld::onDraw, this, transform, parentFlags);
-    Director::getInstance()->getRenderer()->addCommand(_customCommand);
-  }
-
-  void onDraw(const Mat4 &transform, uint32_t flags) {
-    getGLProgramState()->applyGLProgram(transform);
-    glBindVertexArray(_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1, 3);
-    glBindVertexArray(0);
-    CHECK_GL_ERROR_DEBUG();
-  }
-#endif
   CREATE_FUNC(Main_Scene);
 };
 
