@@ -143,17 +143,19 @@ struct Main_Scene : cocos2d::Scene {
     keyboard_listener->onKeyPressed = on_key_pressed;
     keyboard_listener->onKeyReleased = on_key_released;
     _eventDispatcher->addEventListenerWithFixedPriority(keyboard_listener, 1);
-    
+
     return initialize();
   }
   void update(float dt) {
     void reset_ui();
     void cleanup_unused_ui_elements();
+    void draw_immediate_mode_graphics();
     
     reset_ui();
     main_loop(dt);
     reset_inputs();
     cleanup_unused_ui_elements();
+    draw_immediate_mode_graphics();
   }
   CREATE_FUNC(Main_Scene);
 };

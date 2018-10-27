@@ -1,50 +1,47 @@
 //
-// Entity System:
+// Math Stuff (Might Remove):
 //
 
-struct Entity {
-  cocos2d::Sprite *sprite;
-  int texture;
-  int manager_index;
-  float x;
-  float y;
-  float w;
-  float h;
+struct V2 {float x, y;};
+struct MRect {
+  union {
+    V2 pos;
+    struct {float x, y;};
+  };
+  union {
+    V2 dims;
+    struct {float w, h;};
+  };
 };
-Dynamic_Array<Entity *> entity_manager;
-Dynamic_Array<cocos2d::Texture2D *> textures;
-
-Entity *create_entity(Entity *e) {
-  Entity *n = (Entity *)malloc(sizeof(Entity));
-  *n = *e;
-  if (n->texture < 0 || n->texture >= textures.length) n->texture = 0;
-  n->sprite = cocos2d::Sprite::createWithTexture(textures[n->texture]);
-  n->sprite->setIgnoreAnchorPointForPosition(true);
-  float tw = textures[n->texture]->getPixelsWide();
-  float th = textures[n->texture]->getPixelsHigh();
-  n->sprite->setScaleX(n->w/tw);
-  n->sprite->setScaleY(n->h/th);
-  n->sprite->setPosition(cocos2d::Vec2(n->x, n->y) - cocos2d::Vec2((tw - n->w)/2.0f,
-								   (th - n->h)/2.0f));
-  game_layer->addChild(n->sprite, 0);
-
-  n->manager_index = entity_manager.length;
-  entity_manager.add(n);
-  return n;
+inline V2 v2(float x, float y) {return {x, y};}
+inline V2 operator+(V2 a, V2 b) {return v2(a.x + b.x, a.y + b.y);}
+inline V2 operator-(V2 a, V2 b) {return v2(a.x - b.x, a.y - b.y);}
+inline V2 operator*(V2 a, float b) {return v2(a.x*b, a.y*b);}
+inline V2 operator*(float a, V2 b) {return v2(b.x*a, b.y*a);}
+inline V2 operator*(V2 a, V2 b) {return v2(a.x*b.x, a.y*b.y);}
+inline V2 operator-(V2 a) {return v2(-a.x, -a.y);}
+inline V2 operator/(V2 a, float b) {return v2(a.x/b, a.y/b);}
+inline V2 operator/(V2 a, V2 b) {return v2(a.x/b.x, a.y/b.y);}
+inline V2 &operator*=(V2 &a, float b) {return (a = a*b);}
+inline V2 &operator/=(V2 &a, float b) {return (a = a/b);}
+inline V2 &operator+=(V2 &a, V2 b) {return (a = a + b);}
+inline V2 &operator-=(V2 &a, V2 b) {return (a = a - b);}
+inline bool operator==(V2 a, V2 b) {return a.x == b.x && a.y == b.y;}
+inline bool operator!=(V2 a, V2 b) {return !(a == b);}
+inline float mag(V2 v) {return sqrt(v.x*v.x + v.y*v.y);}
+inline V2 normalize(V2 v) {
+  float m = mag(v);
+  if (m == 0.0f) return v2(0.0f, 0.0f);
+  return v / m;
 }
-void delete_entity(Entity *e) {
-  entity_manager.remove_at(e->manager_index);
-  if (e->manager_index < entity_manager.length)
-    entity_manager[e->manager_index]->manager_index = e->manager_index;
-  game_layer->removeChild(e->sprite, true); //@CHECK
-  free(e);
-}
-void ordered_delete_entity(Entity *e) { // Call this if you don't want the entity manager to reorder the entities after deleting one
-  entity_manager.ordered_remove_at(e->manager_index);
-  for (int i = e->manager_index; i < entity_manager.length; i++)
-    entity_manager[i]->manager_index = i;
-  game_layer->removeChild(e->sprite, true); //@CHECK
-  free(e);
+
+static MRect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
+//@FIX: This calculation is incorrect:
+inline V2 screen_to_world(V2 v, MRect view1 = view) {
+  float scale_x = window_resolution.width / view1.w;
+  float scale_y = window_resolution.height / view1.h;
+  return v2(view1.x + view.w/2.0f*scale_x + v.x/scale_x,
+	    view1.y + view.h/2.0f*scale_y + v.y/scale_y);
 }
 
 //
@@ -128,19 +125,44 @@ void get_filenames_in_directory(char *directory, Dynamic_Array<char *> *result) 
 // Texture System:
 //
 
-cocos2d::Texture2D *make_texture(char *name) {
-  char filename[256];
-  sprintf(filename, "bitmaps/%s", name);
+Dynamic_Array<cocos2d::Texture2D *> textures;
+
+int make_texture(unsigned char *data, int width, int height) {
   cocos2d::Texture2D *texture = new cocos2d::Texture2D();
+  texture->initWithData(data, 4*width*height, cocos2d::Texture2D::PixelFormat::RGBA8888, width, height, cocos2d::Size(width, height));
+  if ((width % 2) == 0 && (height % 2) == 0) texture->generateMipmap(); // NOTE: This call will cause a crash if it's called with an image that isn't a multiple of 2 in both dimensions...
+                                                                        // TODO: (We may want to print an error message in that case)
+  textures.add(texture);
+  return textures.length - 1;
+}
+int make_texture(char *name) {
+  char filename[256]; //@MEMORY
+  sprintf(filename, "bitmaps/%s", name);
   int pixel_width = 0, pixel_height = 0, bitdepth = 0;
   unsigned char *data = stbi_load(filename, &pixel_width, &pixel_height, &bitdepth, STBI_rgb_alpha);
-  assert(bitdepth == 4);
-  texture->initWithData(data, bitdepth*pixel_width*pixel_height, cocos2d::Texture2D::PixelFormat::RGBA8888, pixel_width, pixel_height, cocos2d::Size(pixel_width, pixel_height));
-  if ((pixel_width % 2) == 0 && (pixel_height % 2) == 0) texture->generateMipmap(); // NOTE: This call will cause a crash if it's called with an image that isn't a multiple of 2 in both dimensions...
-                                                                                    // TODO: (We may want to print an error message in that case)
+  assert(bitdepth == 4); // We're assuming an RGBA image
+  int texture_index = make_texture(data, pixel_width, pixel_height);
   STBI_FREE(data);
-  textures.add(texture);
-  return texture;
+  return texture_index;
+}
+
+//
+// Fonts:
+//
+
+Dynamic_Array<cocos2d::TTFConfig *> fonts;
+
+int add_font(char *font_filename, int font_size) {
+  cocos2d::TTFConfig *ttf_config = new cocos2d::TTFConfig();
+  ttf_config->fontFilePath = "fonts/";
+  ttf_config->fontFilePath += font_filename;
+  ttf_config->fontSize = font_size;
+  ttf_config->glyphs = cocos2d::GlyphCollection::DYNAMIC;
+  ttf_config->outlineSize = 0;
+  ttf_config->customGlyphs = NULL;
+  ttf_config->distanceFieldEnabled = false;
+  fonts.add(ttf_config);
+  return fonts.length - 1;
 }
 
 //
@@ -203,6 +225,166 @@ void play_sound(int sound_index, bool loop = false) {
 }
 
 //
+// Immediate Mode Graphics:
+//
+
+union Graphics_Item {
+  cocos2d::Sprite *sprite;
+  cocos2d::Label *label;
+};
+struct Graphics_Items {
+  Dynamic_Array<Graphics_Item> items;
+  int next_item;
+};
+
+Graphics_Items game_sprite_graphics_items;
+Graphics_Items screen_sprite_graphics_items;
+Graphics_Items game_label_graphics_items;
+Graphics_Items screen_label_graphics_items;
+
+struct Draw_Settings {
+  cocos2d::Color3B draw_color = cocos2d::Color3B(255, 255, 255);
+  u8 draw_color_opacity = 255;
+  bool screen_draw = false;
+} draw_settings;
+
+inline void set_draw_color(float red, float green, float blue, float alpha) {
+  draw_settings.draw_color.r = (u8)(red*255.0f);
+  draw_settings.draw_color.g = (u8)(green*255.0f);
+  draw_settings.draw_color.b = (u8)(blue*255.0f);
+  draw_settings.draw_color_opacity = (u8)(alpha*255.0f);
+}
+inline void set_draw_color_bytes(u8 red, u8 green, u8 blue, u8 alpha) {
+  draw_settings.draw_color.r = red;
+  draw_settings.draw_color.g = green;
+  draw_settings.draw_color.b = blue;
+  draw_settings.draw_color_opacity = alpha;
+}
+inline void enable_screen_draw() {draw_settings.screen_draw = true;}
+inline void disable_screen_draw() {draw_settings.screen_draw = false;}
+
+void draw_rect(int texture, float x, float y, float w, float h) {
+  assert(texture >= 0);
+  assert(texture < textures.length);
+  Graphics_Items *items = NULL;
+  if (draw_settings.screen_draw) items = &screen_sprite_graphics_items;
+  else items = &game_sprite_graphics_items;
+  
+  if (items->next_item >= items->items.length) {
+    Graphics_Item item = {};
+    item.sprite = cocos2d::Sprite::createWithTexture(textures[texture]);
+    item.sprite->setIgnoreAnchorPointForPosition(true);
+    
+    if (draw_settings.screen_draw) screen_layer->addChild(item.sprite, 0);
+    else game_layer->addChild(item.sprite, 0);
+    items->items.add(item);
+  }
+  Graphics_Item *item = items->items.data + items->next_item;
+  item->sprite->setTexture(textures[texture]);
+  float tw = textures[texture]->getPixelsWide();
+  float th = textures[texture]->getPixelsHigh();
+  item->sprite->setColor(draw_settings.draw_color);
+  item->sprite->setOpacity(draw_settings.draw_color_opacity);
+  item->sprite->setScaleX(w/tw);
+  item->sprite->setScaleY(h/th);
+  item->sprite->setPosition(cocos2d::Vec2(x, y) - cocos2d::Vec2((tw - w)/2.0f, (th - h)/2.0f)); //@CHECK: This might be incorrect
+  item->sprite->setVisible(true);
+  items->next_item++;
+}
+inline void draw_solid_rect(float x, float y, float w, float h) {
+  draw_rect(0, x, y, w, h);
+}
+
+void draw_text(char *text, float x, float y, int font_index) {
+  assert(font_index >= 0);
+  assert(font_index < fonts.length);
+  Graphics_Items *items = NULL;
+  if (draw_settings.screen_draw) items = &screen_label_graphics_items;
+  else items = &game_label_graphics_items;
+
+  if (items->next_item >= items->items.length) {
+    Graphics_Item item = {};
+    item.label = cocos2d::Label::createWithTTF(*fonts[font_index], text);
+    item.label->setIgnoreAnchorPointForPosition(true);
+
+    if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
+    else game_layer->addChild(item.label, 0);
+    items->items.add(item);
+  }
+  Graphics_Item *item = items->items.data + items->next_item;
+  item->sprite->setColor(draw_settings.draw_color);
+  item->sprite->setOpacity(draw_settings.draw_color_opacity);
+  item->label->setPosition(cocos2d::Vec2(x, y)); //@FIX: This is probably incorrect
+  item->label->setVisible(true);
+  items->next_item++;
+}
+
+void draw_immediate_mode_graphics() {
+  for (int graphics_items_index = 0; graphics_items_index < 4; graphics_items_index++) {
+    Graphics_Items *items = NULL;
+    if (graphics_items_index == 0) items = &game_sprite_graphics_items;
+    else if (graphics_items_index == 1) items = &screen_sprite_graphics_items;
+    else if (graphics_items_index == 2) items = &game_label_graphics_items;
+    else if (graphics_items_index == 3) items = &screen_label_graphics_items;
+    
+    for (int i = items->next_item; i < items->items.length; i++) {
+      Graphics_Item *g = items->items.data + i;
+      if (graphics_items_index > 1) g->label->setVisible(false);
+      else g->sprite->setVisible(false);
+    }
+    items->next_item = 0;
+  }
+}
+
+//
+// Entity System:
+//
+
+struct Entity {
+  cocos2d::Sprite *sprite;
+  int texture;
+  int manager_index;
+  float x;
+  float y;
+  float w;
+  float h;
+};
+Dynamic_Array<Entity *> entity_manager;
+
+Entity *create_entity(Entity *e) {
+  Entity *n = (Entity *)malloc(sizeof(Entity));
+  *n = *e;
+  if (n->texture < 0 || n->texture >= textures.length) n->texture = 0;
+  n->sprite = cocos2d::Sprite::createWithTexture(textures[n->texture]);
+  n->sprite->setIgnoreAnchorPointForPosition(true);
+  float tw = textures[n->texture]->getPixelsWide();
+  float th = textures[n->texture]->getPixelsHigh();
+  n->sprite->setScaleX(n->w/tw);
+  n->sprite->setScaleY(n->h/th);
+  n->sprite->setPosition(cocos2d::Vec2(n->x, n->y) - cocos2d::Vec2((tw - n->w)/2.0f,
+								   (th - n->h)/2.0f));
+  game_layer->addChild(n->sprite, 0);
+
+  n->manager_index = entity_manager.length;
+  entity_manager.add(n);
+  return n;
+}
+void delete_entity(Entity *e) {
+  entity_manager.remove_at(e->manager_index);
+  if (e->manager_index < entity_manager.length)
+    entity_manager[e->manager_index]->manager_index = e->manager_index;
+  game_layer->removeChild(e->sprite, true); //@CHECK
+  free(e);
+}
+void ordered_delete_entity(Entity *e) { // Call this if you don't want the entity manager to reorder the entities after deleting one
+  entity_manager.ordered_remove_at(e->manager_index);
+  for (int i = e->manager_index; i < entity_manager.length; i++)
+    entity_manager[i]->manager_index = i;
+  game_layer->removeChild(e->sprite, true); //@CHECK
+  free(e);
+}
+
+//
 // Game Startup Code:
 //
 
@@ -224,16 +406,15 @@ bool initialize() {
   main_scene->addChild(game_layer, 0);
   main_scene->addChild(screen_layer, 1);
 
-  auto label = cocos2d::Label::createWithTTF("Hello Sailor!", "fonts/Marker Felt.ttf", 24);
-  if (label == NULL) {
-    problem_loading("'fonts/Marker Felt.ttf'");
-  } else {
-    label->setPosition(cocos2d::Vec2(origin.x + visibleSize.width/2,
-				     origin.y + visibleSize.height - label->getContentSize().height));
+  add_font("Marker Felt.ttf", 24);
 
-    screen_layer->addChild(label, 1);
+  { // Make Blank White Texture:
+    const int W = 4;
+    const int H = 4;
+    unsigned char data[4*W*H];
+    for (int i = 0; i < sizeof(data); i++) data[i] = 255;
+    make_texture(data, W, H);
   }
-
   make_texture("sun.png");
 
   // NOTE: For some reason, we can't load .wav files. Not sure if they're supported, but they're a much better format to use for sound effects.
@@ -250,58 +431,13 @@ bool initialize() {
   play_music(0);
   
   Entity e = {};
+  e.texture = 1;
   e.w = e.h = 100.0f;
   create_entity(&e);
   create_entity(&e);
   
   main_scene->scheduleUpdate();
   return true;
-}
-
-//
-// Math Stuff (Might Remove):
-//
-
-struct V2 {float x, y;};
-struct MRect {
-  union {
-    V2 pos;
-    struct {float x, y;};
-  };
-  union {
-    V2 dims;
-    struct {float w, h;};
-  };
-};
-inline V2 v2(float x, float y) {return {x, y};}
-inline V2 operator+(V2 a, V2 b) {return v2(a.x + b.x, a.y + b.y);}
-inline V2 operator-(V2 a, V2 b) {return v2(a.x - b.x, a.y - b.y);}
-inline V2 operator*(V2 a, float b) {return v2(a.x*b, a.y*b);}
-inline V2 operator*(float a, V2 b) {return v2(b.x*a, b.y*a);}
-inline V2 operator*(V2 a, V2 b) {return v2(a.x*b.x, a.y*b.y);}
-inline V2 operator-(V2 a) {return v2(-a.x, -a.y);}
-inline V2 operator/(V2 a, float b) {return v2(a.x/b, a.y/b);}
-inline V2 operator/(V2 a, V2 b) {return v2(a.x/b.x, a.y/b.y);}
-inline V2 &operator*=(V2 &a, float b) {return (a = a*b);}
-inline V2 &operator/=(V2 &a, float b) {return (a = a/b);}
-inline V2 &operator+=(V2 &a, V2 b) {return (a = a + b);}
-inline V2 &operator-=(V2 &a, V2 b) {return (a = a - b);}
-inline bool operator==(V2 a, V2 b) {return a.x == b.x && a.y == b.y;}
-inline bool operator!=(V2 a, V2 b) {return !(a == b);}
-inline float mag(V2 v) {return sqrt(v.x*v.x + v.y*v.y);}
-inline V2 normalize(V2 v) {
-  float m = mag(v);
-  if (m == 0.0f) return v2(0.0f, 0.0f);
-  return v / m;
-}
-
-static MRect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
-//@FIX: This calculation is incorrect:
-inline V2 screen_to_world(V2 v, MRect view1 = view) {
-  float scale_x = window_resolution.width / view1.w;
-  float scale_y = window_resolution.height / view1.h;
-  return v2(view1.x + view.w/2.0f*scale_x + v.x/scale_x,
-	    view1.y + view.h/2.0f*scale_y + v.y/scale_y);
 }
 
 //
@@ -532,9 +668,27 @@ void main_loop(float dt) {
   }
   text_field("Sup");
   ui_end();
+
+  if (key[(int)KeyCode::KEY_SPACE].is_down) {
+    for (int i = 0; i < 10; i++) {
+      draw_rect(1, 100.0f + 200.0f*sin(time_elapsed*0.25f*(i + 1)), 100.0f*i, 100.0f, 100.0f);
+    }
+  }
+
+  {
+    char text[256];
+    for (int i = 0; i < 10; i++) {
+      snprintf(text, sizeof(text), "TEST TEXT %i", i);
+      set_draw_color(i/10.0f, 0.7f, 0.0f, 1.0f);
+    
+      draw_text(text, 500.0f + 100.0f*sin(time_elapsed*3.0f), 500.0f + i*100.0f, 0);
+    }
+  }
+  set_draw_color_bytes(255, 255, 255, 255);
   
   if (mouse.left.just_pressed) { // Place Entity:
     Entity e = {};
+	e.texture = 1;
     e.w = e.h = rand_float()*130.0f;
     e.x = world_mouse.x - e.w/2.0f;
     e.y = world_mouse.y - e.h/2.0f;
