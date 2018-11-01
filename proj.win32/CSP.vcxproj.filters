@@ -33,6 +33,9 @@
     <ClCompile Include="..\Classes\modules\random.cpp">
       <Filter>src\modules</Filter>
     </ClCompile>
+    <ClCompile Include="..\Classes\ui.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
