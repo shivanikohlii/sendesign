@@ -13,6 +13,8 @@ typedef uint64_t u64;
 typedef float f32;
 typedef double f64;
 
+typedef unsigned char uchar;
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "libraries/stb_image.h"
 
@@ -22,29 +24,17 @@ typedef double f64;
 
 // Note: This will put the cocos2d library into the global namespace:      USING_NS_CC;
 
-#define KeyCode cocos2d::EventKeyboard::KeyCode
 #include "audio/include/AudioEngine.h"
-
-struct Input_Button {
-  bool is_down;
-  bool just_pressed;
-};
-struct Mouse {
-  Input_Button left;
-  Input_Button right;
-  float x;
-  float y;
-  float scroll;
-} mouse;
+#include "input.cpp"
 
 //
 // Game "Engine" Globals:
 //
 cocos2d::Size window_resolution = cocos2d::Size(1366, 768);
 bool fullscreen = false;
+float dt = 0.0f;
+float total_time_elapsed = 0.0f;
 
-Input_Button key[256] = {};
-Dynamic_Array<unsigned char> keys_just_pressed;
 cocos2d::Scene *main_scene = NULL;
 cocos2d::Layer *game_layer = NULL;
 cocos2d::Layer *screen_layer = NULL;
@@ -54,7 +44,7 @@ cocos2d::Layer *screen_layer = NULL;
 //
 
 struct V2 {float x, y;};
-struct MRect {
+struct Rect {
   union {
     V2 pos;
     struct {float x, y;};
@@ -64,7 +54,7 @@ struct MRect {
     struct {float w, h;};
   };
 };
-inline bool point_in_rect(V2 point, MRect rect) {
+inline bool point_in_rect(V2 point, Rect rect) {
   return (point.x > rect.x && point.x < (rect.x + rect.w) &&
 	  point.y > rect.y && point.y < (rect.y + rect.h));
 }
@@ -90,9 +80,9 @@ inline V2 normalize(V2 v) {
   return v / m;
 }
 
-static MRect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
+Rect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
 //@FIX: This calculation is incorrect:
-inline V2 screen_to_world(V2 v, MRect view1 = view) {
+inline V2 screen_to_world(V2 v, Rect view1 = view) {
   float scale_x = window_resolution.width / view1.w;
   float scale_y = window_resolution.height / view1.h;
   return v2(view1.x + view.w/2.0f*scale_x + v.x/scale_x,
@@ -182,7 +172,7 @@ void get_filenames_in_directory(char *directory, Dynamic_Array<char *> *result) 
 
 Dynamic_Array<cocos2d::Texture2D *> textures;
 
-int make_texture(unsigned char *data, int width, int height) {
+int make_texture(uchar *data, int width, int height) {
   cocos2d::Texture2D *texture = new cocos2d::Texture2D();
   texture->initWithData(data, 4*width*height, cocos2d::Texture2D::PixelFormat::RGBA8888, width, height, cocos2d::Size(width, height));
   if ((width % 2) == 0 && (height % 2) == 0) texture->generateMipmap(); // NOTE: This call will cause a crash if it's called with an image that isn't a multiple of 2 in both dimensions...
@@ -194,7 +184,7 @@ int make_texture(char *name) {
   char filename[256]; //@MEMORY
   sprintf(filename, "bitmaps/%s", name);
   int pixel_width = 0, pixel_height = 0, bitdepth = 0;
-  unsigned char *data = stbi_load(filename, &pixel_width, &pixel_height, &bitdepth, STBI_rgb_alpha);
+  uchar *data = stbi_load(filename, &pixel_width, &pixel_height, &bitdepth, STBI_rgb_alpha);
   assert(bitdepth == 4); // We're assuming an RGBA image
   int texture_index = make_texture(data, pixel_width, pixel_height);
   STBI_FREE(data);
@@ -350,7 +340,7 @@ inline void draw_solid_rect(float x, float y, float w, float h) {
   draw_rect(0, x, y, w, h);
 }
 
-void draw_text(char *text, float x, float y, int font_index) {
+Rect get_text_rect(char *text, float x, float y, int font_index) {
   assert(font_index >= 0);
   assert(font_index < fonts.length);
   Graphics_Items *items = NULL;
@@ -361,17 +351,59 @@ void draw_text(char *text, float x, float y, int font_index) {
     Graphics_Item item = {};
     item.label = cocos2d::Label::createWithTTF(*fonts[font_index], text);
     item.label->setIgnoreAnchorPointForPosition(true);
+    
+    //item.label->setVerticalAlignment(cocos2d::TextVAlignment::TOP);
+    //item.label->setHorizontalAlignment(cocos2d::TextHAlignment::LEFT);
+
+    if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
+    else game_layer->addChild(item.label, 0);
+    items->items.add(item);
+    item.label->setVisible(false);
+  }
+  Graphics_Item *item = items->items.data + items->next_item;
+
+  //@TODO: Check the overhead on these two calls:
+  item->label->setTTFConfig(*fonts[font_index]);
+  item->label->setString(text);
+
+  y -= (item->label->getStringNumLines() - 1)*item->label->getLineHeight(); //@HACK: Figure out a better way to ensure that multi-line text moves down from y as the number of lines increases
+  cocos2d::Size size = item->label->getContentSize();
+  return {x, y, size.width, size.height};
+}
+
+Rect draw_text(char *text, float x, float y, int font_index) {
+  assert(font_index >= 0);
+  assert(font_index < fonts.length);
+  Graphics_Items *items = NULL;
+  if (draw_settings.screen_draw) items = &screen_label_graphics_items;
+  else items = &game_label_graphics_items;
+
+  if (items->next_item >= items->items.length) {
+    Graphics_Item item = {};
+    item.label = cocos2d::Label::createWithTTF(*fonts[font_index], text);
+    item.label->setIgnoreAnchorPointForPosition(true);
+    
+    //item.label->setVerticalAlignment(cocos2d::TextVAlignment::TOP);
+    //item.label->setHorizontalAlignment(cocos2d::TextHAlignment::LEFT);
 
     if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
     else game_layer->addChild(item.label, 0);
     items->items.add(item);
   }
   Graphics_Item *item = items->items.data + items->next_item;
-  item->sprite->setColor(draw_settings.draw_color);
-  item->sprite->setOpacity(draw_settings.draw_color_opacity);
+
+  //@TODO: Check the overhead on these two calls:
+  item->label->setTTFConfig(*fonts[font_index]);
+  item->label->setString(text);
+
+  item->label->setColor(draw_settings.draw_color);
+  item->label->setOpacity(draw_settings.draw_color_opacity);
+  y -= (item->label->getStringNumLines() - 1)*item->label->getLineHeight(); //@HACK: Figure out a better way to ensure that multi-line text moves down from y as the number of lines increases
   item->label->setPosition(cocos2d::Vec2(x, y)); //@FIX: This is probably incorrect
   item->label->setVisible(true);
   items->next_item++;
+  cocos2d::Size size = item->label->getContentSize();
+  return {x, y, size.width, size.height};
 }
 
 void draw_immediate_mode_graphics() {
@@ -395,76 +427,6 @@ void draw_immediate_mode_graphics() {
 #include "CSP.cpp"
 
 //
-// Input Code:
-//
-void reset_inputs() {
-  mouse.scroll = 0.0f;
-  mouse.left.just_pressed = false;
-  mouse.right.just_pressed = false;
-  for (int i = 0; i < keys_just_pressed.length; i++) {
-    unsigned char c = keys_just_pressed[i];
-    key[c].just_pressed = false;
-  }
-  keys_just_pressed.length = 0;
-}
-void on_mouse_down(cocos2d::Event *event) {
-  cocos2d::EventMouse *mouse_event = (cocos2d::EventMouse *)event;
-  if ((int)mouse_event->getMouseButton() == 1) {
-    mouse.right.is_down = mouse.right.just_pressed = true;
-  } else if ((int)mouse_event->getMouseButton() == 0) {
-    mouse.left.is_down = mouse.left.just_pressed = true;
-  }
-}
-void on_mouse_up(cocos2d::Event *event) {
-  cocos2d::EventMouse *mouse_event = (cocos2d::EventMouse *)event;
-  if ((int)mouse_event->getMouseButton() == 1) mouse.right.is_down = false;
-  else if ((int)mouse_event->getMouseButton() == 0) mouse.left.is_down = false;
-}
-void on_mouse_move(cocos2d::Event *event) {
-  cocos2d::EventMouse *mouse_event = (cocos2d::EventMouse *)event;
-  mouse.x = mouse_event->getCursorX();
-  mouse.y = mouse_event->getCursorY();
-}
-void on_mouse_scroll(cocos2d::Event *event) {
-  cocos2d::EventMouse *mouse_event = (cocos2d::EventMouse *)event;
-  mouse.scroll = mouse_event->getScrollY();
-}
-// Given a key code, returns whether the key should be registered as an input as well as its corresponding index in the keys table
-// The reason why this exists is so you can do things like:
-// if (keys['a'].is_down) ...
-// rather than having to do something like:
-// if (keys[(unsigned char)KeyCode::KEY_A].is_down) ...
-bool process_key(KeyCode key_code, unsigned char *out) { 
-  unsigned int i = (unsigned int)key_code;
-  if (i < 256) {
-    unsigned char c = (unsigned char)key_code;
-    bool add_key = true;
-    if (c >= 124 && c <= 149) c = (c - 124) + 'a';
-    else if (c >= 76 && c <= 85) c = (c - 76) + '0';
-    else if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) add_key = false;
-    
-    if (add_key) {
-      *out = c;
-      return true;
-    }
-    return false;
-  }
-  return false;
-}
-void on_key_pressed(KeyCode key_code, cocos2d::Event *event) {
-  unsigned char c = 0;
-  if (process_key(key_code, &c)) {
-    keys_just_pressed.add(c);
-    key[c].just_pressed = true;
-    key[c].is_down = true;
-  }
-}
-void on_key_released(KeyCode key_code, cocos2d::Event *event) {
-  unsigned char c = 0;
-  if (process_key(key_code, &c)) key[c].is_down = false;
-}
-
-//
 // Main Scene, Necessary to Interface With Cocos:
 //
 
@@ -483,21 +445,20 @@ struct Main_Scene : cocos2d::Scene {
     _eventDispatcher->addEventListenerWithFixedPriority(listener, 1);
 
     auto keyboard_listener = cocos2d::EventListenerKeyboard::create();
+    
     keyboard_listener->onKeyPressed = on_key_pressed;
     keyboard_listener->onKeyReleased = on_key_released;
     _eventDispatcher->addEventListenerWithFixedPriority(keyboard_listener, 1);
 
     return initialize();
   }
-  void update(float dt) {
-    void reset_ui();
-    void cleanup_unused_ui_elements();
+  void update(float delta_time) {
     void draw_immediate_mode_graphics();
-    
-    reset_ui();
-    main_loop(dt);
+
+    dt = delta_time;
+    total_time_elapsed += dt;
+    main_loop();
     reset_inputs();
-    cleanup_unused_ui_elements();
     draw_immediate_mode_graphics();
   }
   CREATE_FUNC(Main_Scene);
@@ -508,8 +469,8 @@ AppDelegate::~AppDelegate() {}
 
 void AppDelegate::initGLContextAttrs() {
   // NOTE: OpenGL context attributes: red,green,blue,alpha,depth,stencil,multisamplesCount
-  GLContextAttrs glContextAttrs = {8, 8, 8, 8, 24, 8, 0};
-  cocos2d::GLView::setGLContextAttrs(glContextAttrs);
+  GLContextAttrs gl_context_attributes = {8, 8, 8, 8, 24, 8, 0};
+  cocos2d::GLView::setGLContextAttrs(gl_context_attributes);
 }
 
 static int register_all_packages() {return 0;}

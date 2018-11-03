@@ -2,6 +2,8 @@ Steps Before Building:
 1. Put the cocos2d folder in the root directory of the project (This is just the folder with all of the components of the cocos2d library, Link: https://drive.google.com/open?id=1cD0E3U8KAYiHiywQ-qBEfHmJ81Xt9Ua-)
    Make sure this folder is called cocos2d
 2. Put the Resources folder in the root directory of the project (This just contains all of the assets for the game. Link: https://drive.google.com/open?id=1vuqr8YBRaWQfCG6txSIH97UMIcvQ5lau)
+3. Go to proj.win32 and open up CSP.sln in Visual Studio.
+4. F7 to build.
 
 If You Have Build Errors You Can Try This:
 1. Open up Visual Studio Installer
