@@ -1,13 +1,3 @@
-#define UI_WIDTH 0.2f
-#define UI_HEIGHT 0.065f
-#define UI_FONT 0
-
-struct UI_State {
-  float x = 0.0f;
-  float y = 1.0f;
-  bool prev_screen_draw = false;
-} ui_state;
-
 //
 // Text Input String Operations:
 //
@@ -134,11 +124,12 @@ inline int remove_left_characters_up_to_whitespace(String *str, int index) {
   return 0;
 }
 
-bool handle_text_input(String *buffer, int *caret) {
+bool handle_text_input(String *buffer, int *caret, bool allow_newlines = true) {
   bool changed = false;
   if (characters_typed.length > 0) {
     for (int i = 0; i < characters_typed.length; i++) {
       uchar c = characters_typed[i];
+      if (c == '\n' && !allow_newlines) continue;
       add_char(buffer, *caret, (char)c);
       (*caret)++;
       changed = true;
@@ -204,12 +195,45 @@ bool handle_text_input(String *buffer, int *caret) {
   return changed;
 }
 
+//
+// Actual UI Library:
+//
+
+#define UI_WIDTH 0.2f
+#define UI_HEIGHT 0.035f
+#define UI_FONT 0
+
+struct UI_State {
+  float x = 0.0f;
+  float y = 1.0f;
+  bool prev_screen_draw = false;
+  bool has_keyboard_input = false;
+  int caret_index = 0;
+  char item_with_keyboard_input[256] = {};
+  float time_since_text_field_change = 0.0f;
+  bool just_changed_ui_input_focus = false;
+} ui_state;
+
 inline void ui_begin(float x, float y) {
   ui_state.x = x*window_resolution.width;
   ui_state.y = y*window_resolution.height - UI_HEIGHT*window_resolution.height;
 }
-inline void ui_end() {
+inline void ui_end() {}
+
+inline void ui_begin_frame() {
+  
 }
+inline void ui_end_frame() {
+  if (!ui_state.just_changed_ui_input_focus) {
+    if (mouse.left.just_pressed) {
+      ui_state.item_with_keyboard_input[0] = 0;
+      ui_state.has_keyboard_input = false;
+    }
+  } else {
+    ui_state.just_changed_ui_input_focus = false;
+  }
+}
+
 inline Rect ui_begin_element() {
   Rect r = {ui_state.x, ui_state.y, UI_WIDTH*window_resolution.width, UI_HEIGHT*window_resolution.height};
   ui_state.prev_screen_draw = draw_settings.screen_draw;
@@ -227,43 +251,154 @@ bool button(char *name) {
   else set_draw_color_bytes(210, 130, 20, 255);
   draw_solid_rect(ui_state.x, ui_state.y, r.w, r.h);
   set_draw_color_bytes(255, 255, 255, 255);
-  draw_text(name, ui_state.x, ui_state.y, UI_FONT);
+  draw_text(name, ui_state.x, ui_state.y, UI_FONT, 1);
   ui_end_element();
   return point_in_rect(v2(mouse.x, mouse.y), r) && mouse.left.just_pressed;
 }
 
-bool text_field(String *str) {
-  static int caret = 0; //@REVISE: This will be stored in some other way.
-  static float time_since_last_change = 0.0f;
-  time_since_last_change += dt;
+bool text_field(char *name, String *str) {
   Rect r = ui_begin_element();
   set_draw_color_bytes(210, 130, 20, 255);
   draw_solid_rect(ui_state.x, ui_state.y, r.w, r.h);
-  set_draw_color_bytes(255, 255, 255, 255);;
-  bool changed = handle_text_input(str, &caret);
-  if (changed) time_since_last_change = 0.0f;
+  set_draw_color_bytes(255, 255, 255, 255);
   
-  draw_text(str->str, ui_state.x, ui_state.y, UI_FONT);
+  float l_width = get_text_rect("L", ui_state.x, ui_state.y, UI_FONT).w;
+  Rect name_text_rect = draw_text(name, ui_state.x, ui_state.y, UI_FONT, 1);
+  Rect str_text_rect = draw_text(str->str, name_text_rect.x + name_text_rect.w + l_width*2.0f, ui_state.y, UI_FONT, 1);
+  float x = str_text_rect.x;
+  float y = ui_state.y;
 
-  { // Getting the position of the caret and drawing it:
-    String str_before_caret = substring(*str, 0, caret);
+  bool selected = strcmp(ui_state.item_with_keyboard_input, name) == 0;
+  if (mouse.left.just_pressed) {
+    if (point_in_rect(v2(mouse.x, mouse.y), r)) {
+      selected = true;
+      strncpy(ui_state.item_with_keyboard_input, name, sizeof(ui_state.item_with_keyboard_input));
+      ui_state.just_changed_ui_input_focus = true;
+      ui_state.has_keyboard_input = true;
+      
+      ui_state.caret_index = (mouse.x - x)/l_width; //@HACK: Assumes monospace font
+      if (ui_state.caret_index > str->length) ui_state.caret_index = str->length;
+      if (ui_state.caret_index < 0) ui_state.caret_index = 0;
+    }
+  }
+  
+  bool changed = false;
+
+  if (selected) {
+    ui_state.time_since_text_field_change += dt;
+    changed = handle_text_input(str, &ui_state.caret_index, false);
+    if (changed) ui_state.time_since_text_field_change = 0.0f;
+    if (key['\n'].just_pressed) {
+      ui_state.has_keyboard_input = false;
+      ui_state.item_with_keyboard_input[0] = 0;
+    }
+    
+    // Getting the position of the caret and drawing it:
+    String str_before_caret = substring(*str, 0, ui_state.caret_index);
     char last_char_before_caret = str_before_caret.str[str_before_caret.length];
     char second_to_last_char = str_before_caret.str[str_before_caret.length - 1];
     if (is_whitespace(second_to_last_char))
       str_before_caret.str[str_before_caret.length - 1] = 'L'; //@HACK: This makes sure that ending spaces count toward the cursors position.
     terminate_with_null(&str_before_caret);
-    Rect r2 = get_text_rect(str_before_caret.str, ui_state.x, ui_state.y, UI_FONT);
+    Rect r2 = get_text_rect(str_before_caret.str, x, y, UI_FONT);
     str_before_caret.str[str_before_caret.length] = last_char_before_caret;
     str_before_caret.str[str_before_caret.length - 1] = second_to_last_char;
     char last_char_str[2];
     last_char_str[0] = last_char_before_caret;
     last_char_str[1] = 0;
-    Rect char_rect = get_text_rect(last_char_str, ui_state.x, ui_state.y, UI_FONT);
+    Rect char_rect = get_text_rect(last_char_str, x, y, UI_FONT);
     float font_size = fonts[UI_FONT]->fontSize;
-    float x = r2.x + r2.w;
-    float y = r2.y + font_size*0.05f;
-    set_draw_color_bytes(0, 240, 20, (u8)255.0f*(0.45f + 0.3f*cos(time_since_last_change*6.0f)));
-    draw_solid_rect(x, y, UI_WIDTH*0.03f*window_resolution.width, font_size);
+
+    //@REVISE: This won't work for multiline:
+    float caret_x = r2.x + r2.w;
+    float caret_y = ui_state.y + font_size*0.05f;
+    set_draw_color_bytes(10, 215, 30, (u8)255.0f*(0.45f + 0.3f*cos(ui_state.time_since_text_field_change*6.0f)));
+    draw_solid_rect(caret_x, caret_y, l_width, font_size, 2);
+  }
+  
+  ui_end_element();
+  return changed;
+}
+
+inline int compare_names(char *str1, char *str2) { return strcmp(str1, str2); }
+Hash_Table<char *, String> ui_str_buffer_storage(djb2_hash, compare_names);
+
+bool int_edit(char *name, int *value) {
+  String *str_edit_buffer = ui_str_buffer_storage.retrieve(name);
+  if (!str_edit_buffer) {
+    String str;
+    str.memory_size = 256;
+    str.length = 0;
+    str.str = (char *)malloc(str.memory_size);
+    str_edit_buffer = ui_str_buffer_storage.add(name, str);
+  }
+
+  bool selected = strcmp(ui_state.item_with_keyboard_input, name) == 0;
+
+  if (!selected) {
+    //@OPTIMIZE: Save the integer and only convert to a string when necessary
+    snprintf(str_edit_buffer->str, str_edit_buffer->memory_size, "%i", *value);
+    str_edit_buffer->length = strlen(str_edit_buffer->str);
+  }
+  
+  if (text_field(name, str_edit_buffer)) {
+    char *parsed_to = NULL;
+    long int val = strtol(str_edit_buffer->str, &parsed_to, 10);
+    *value = (int)val;
+    return true;
+  }
+  return false;
+}
+
+bool float_edit(char *name, float *value) {
+  String *str_edit_buffer = ui_str_buffer_storage.retrieve(name);
+  if (!str_edit_buffer) {
+    String str;
+    str.memory_size = 256;
+    str.length = 0;
+    str.str = (char *)malloc(str.memory_size);
+    str_edit_buffer = ui_str_buffer_storage.add(name, str);
+  }
+
+  bool selected = strcmp(ui_state.item_with_keyboard_input, name) == 0;
+
+  if (!selected) {
+    //@OPTIMIZE: Save the float and only convert to a string when necessary
+    snprintf(str_edit_buffer->str, str_edit_buffer->memory_size, "%g", *value);
+    str_edit_buffer->length = strlen(str_edit_buffer->str);
+  }
+  
+  if (text_field(name, str_edit_buffer)) {
+    char *parsed_to = NULL;
+    float val = strtof(str_edit_buffer->str, &parsed_to);
+    *value = val;
+    return true;
+  }
+  return false;
+}
+
+bool checkbox(char *name, bool *value) {
+  Rect r = ui_begin_element();
+  bool mouse_hovering = point_in_rect(v2(mouse.x, mouse.y), r);
+  bool changed = mouse.left.just_pressed && mouse_hovering;
+  if (changed) *value = !(*value);
+
+  if (mouse_hovering) set_draw_color_bytes(245, 175, 50, 255);
+  else set_draw_color_bytes(210, 130, 20, 255);
+  draw_solid_rect(ui_state.x, ui_state.y, r.w, r.h);
+  set_draw_color_bytes(255, 255, 255, 255);
+  Rect text_rect = draw_text(name, ui_state.x, ui_state.y, UI_FONT, 1);
+
+  float ui_height = UI_HEIGHT*window_resolution.height;
+  float w1 = ui_height*0.9f;
+  float w2 = w1*0.72f;
+  float x = r.x + r.w - w1 - ui_height*0.1f;
+  float y = ui_state.y + (ui_height - w1) / 2.0f;
+  set_draw_color_bytes(210, 210, 210, 255);
+  draw_solid_rect(x, y, w1, w1, 1);
+  if (*value) {
+    set_draw_color_bytes(125, 125, 125, 255);
+    draw_solid_rect(x + (w1 - w2)/2.0f, y + (w1 - w2)/2.0f, w2, w2, 2);
   }
   
   ui_end_element();

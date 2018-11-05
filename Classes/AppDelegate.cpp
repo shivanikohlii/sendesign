@@ -308,7 +308,7 @@ inline void set_draw_color_bytes(u8 red, u8 green, u8 blue, u8 alpha) {
 inline void enable_screen_draw() {draw_settings.screen_draw = true;}
 inline void disable_screen_draw() {draw_settings.screen_draw = false;}
 
-void draw_rect(int texture, float x, float y, float w, float h) {
+void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0) {
   assert(texture >= 0);
   assert(texture < textures.length);
   Graphics_Items *items = NULL;
@@ -328,6 +328,7 @@ void draw_rect(int texture, float x, float y, float w, float h) {
   item->sprite->setTexture(textures[texture]);
   float tw = textures[texture]->getPixelsWide();
   float th = textures[texture]->getPixelsHigh();
+  item->sprite->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
   item->sprite->setColor(draw_settings.draw_color);
   item->sprite->setOpacity(draw_settings.draw_color_opacity);
   item->sprite->setScaleX(w/tw);
@@ -336,8 +337,8 @@ void draw_rect(int texture, float x, float y, float w, float h) {
   item->sprite->setVisible(true);
   items->next_item++;
 }
-inline void draw_solid_rect(float x, float y, float w, float h) {
-  draw_rect(0, x, y, w, h);
+inline void draw_solid_rect(float x, float y, float w, float h, int z_order = 0) {
+  draw_rect(0, x, y, w, h, z_order);
 }
 
 Rect get_text_rect(char *text, float x, float y, int font_index) {
@@ -371,7 +372,7 @@ Rect get_text_rect(char *text, float x, float y, int font_index) {
   return {x, y, size.width, size.height};
 }
 
-Rect draw_text(char *text, float x, float y, int font_index) {
+Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
   assert(font_index >= 0);
   assert(font_index < fonts.length);
   Graphics_Items *items = NULL;
@@ -395,6 +396,7 @@ Rect draw_text(char *text, float x, float y, int font_index) {
   //@TODO: Check the overhead on these two calls:
   item->label->setTTFConfig(*fonts[font_index]);
   item->label->setString(text);
+  item->label->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
 
   item->label->setColor(draw_settings.draw_color);
   item->label->setOpacity(draw_settings.draw_color_opacity);
@@ -457,7 +459,9 @@ struct Main_Scene : cocos2d::Scene {
 
     dt = delta_time;
     total_time_elapsed += dt;
+    ui_begin_frame();
     main_loop();
+    ui_end_frame();
     reset_inputs();
     draw_immediate_mode_graphics();
   }

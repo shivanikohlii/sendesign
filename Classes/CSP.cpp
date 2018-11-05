@@ -69,7 +69,8 @@ bool initialize() {
   main_scene->addChild(game_layer, 0);
   main_scene->addChild(screen_layer, 1);
 
-  add_font("Marker Felt.ttf", 24);
+  add_font("Inconsolata-Regular.ttf", 16);
+  add_font("AndBasR.ttf", 24);
 
   { // Make Blank White Texture:
     const int W = 4;
@@ -123,7 +124,7 @@ void main_loop() {
     game_layer->setPosition(-view.x*scale_x - scale_x*view.w/2.0f, -view.y*scale_y - scale_y*view.h/2.0f);
   }
 
-  if (key[KEY_CTRL].is_down && key['p'].just_pressed) {
+  if (!ui_state.has_keyboard_input && key[KEY_CTRL].is_down && key['p'].just_pressed) {
     if (editor_mode == SELECT_MODE) editor_mode = PLACEMENT_MODE;
     else editor_mode = SELECT_MODE;
   }
@@ -137,7 +138,7 @@ void main_loop() {
     entity_manager.top()->invisible = true;
   }
   
-  { // Camera Control:
+  if (!ui_state.has_keyboard_input) { // Camera Control:
     int dx = 0, dy = 0;
     if (key['w'].is_down) dy++;
     if (key['s'].is_down) dy--;
@@ -175,14 +176,39 @@ void main_loop() {
     OutputDebugStringA("TEST 2!\n");
   }
   static char buffer[256];
+  static char buffer2[256];
   static String str = {};
+  static String str2 = {};
   if (!str.str) { // On Initialization
     str = fixed_str(buffer);
     append(&str, "Type Stuff...");
+    str2 = fixed_str(buffer2);
   }
-  
-  if (text_field(&str)) {
+
+  if (text_field("Test String", &str)) {
     // Stuff Changed
+  }
+  if (text_field("Test String 2", &str2)) {
+    // Stuff Changed
+  }
+  char tmp_name[256];
+  for (int i = 0; i < 5; i++) {
+    snprintf(tmp_name, sizeof(tmp_name), "Test Str %i", i + 3);
+    text_field(tmp_name, &str);
+  }
+
+  static int value = 0;
+  if (int_edit("integer", &value)) {
+    
+  }
+  static float f = 0.0f;
+  if (float_edit("float", &f)) {
+
+  }
+
+  static bool bool_val = false;
+  if (checkbox("boolean", &bool_val)) {
+    
   }
   
   ui_end();

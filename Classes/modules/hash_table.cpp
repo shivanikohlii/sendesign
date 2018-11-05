@@ -38,7 +38,7 @@ template <class Key_Type, class Data_Type> struct Hash_Table {
     }
     return false;
   }
-  void add(Key_Type key, Data_Type data) {
+  Data_Type *add(Key_Type key, Data_Type data) {
     if (slots.length == 0) {
       slots.set_length(DEFAULT_HASH_TABLE_SIZE);
       memset(slots.data, 0, sizeof(Hash_Slot<Key_Type, Data_Type>)*DEFAULT_HASH_TABLE_SIZE);
@@ -51,7 +51,9 @@ template <class Key_Type, class Data_Type> struct Hash_Table {
       slots[slot_index].entries = (Dynamic_Array<Hash_Record<Key_Type, Data_Type>> *)malloc(sizeof(Dynamic_Array<Hash_Record<Key_Type, Data_Type>>));
       slots[slot_index].entries->initialize(4); // 4 item slots to start
     }
-    slots[slot_index].entries->add(record);
+    Dynamic_Array<Hash_Record<Key_Type, Data_Type>> *entries = slots[slot_index].entries;
+    entries->add(record);
+    return &entries->data[entries->length - 1].data;
   }
 
   bool retrieve(Key_Type key, Data_Type *out) {
@@ -67,6 +69,23 @@ template <class Key_Type, class Data_Type> struct Hash_Table {
       }
     }
     return false;
+  }
+  // @Warning: No guarantees how long this pointer will last if you decide
+  // to keep it. It may become invalid if the dynamic array holding
+  // this pointer has to resize, which can happen whenever you add something to
+  // the hash table.
+  Data_Type *retrieve(Key_Type key) {
+    if (slots.length == 0) return NULL;
+    u64 slot_index = hash_function(key) % slots.length;
+    Hash_Slot<Key_Type, Data_Type> slot = slots[slot_index];
+    if (slot.entries) {
+      for (int i = 0; i < slot.entries->length; i++) {
+	if (key_compare(slot.entries->data[i].key, key) == 0) {
+	  return &slot.entries->data[i].data;
+	}
+      }
+    }
+    return NULL;
   }
 
   inline Dynamic_Array<Hash_Record<Key_Type, Data_Type>> *retrieve_records(u64 key) {
