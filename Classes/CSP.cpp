@@ -13,6 +13,7 @@ struct Entity {
   bool invisible;
 };
 Dynamic_Array<Entity *> entity_manager;
+static int texture_number = 1;
 
 Entity *create_entity(Entity *e) {
   Entity *n = (Entity *)malloc(sizeof(Entity));
@@ -69,8 +70,7 @@ bool initialize() {
   main_scene->addChild(game_layer, 0);
   main_scene->addChild(screen_layer, 1);
 
-  add_font("Inconsolata-Regular.ttf", 16);
-  add_font("AndBasR.ttf", 24);
+  add_font("Marker Felt.ttf", 24);
 
   { // Make Blank White Texture:
     const int W = 4;
@@ -79,7 +79,16 @@ bool initialize() {
     for (int i = 0; i < sizeof(data); i++) data[i] = 255;
     make_texture(data, W, H);
   }
-  make_texture("sun.png");
+  //make_texture("heart.png");
+
+  Dynamic_Array<char *> bitmap_filenames;
+  get_filenames_in_directory("bitmaps", &bitmap_filenames);
+  for (int i = 0; i < bitmap_filenames.length; i++) {
+	  if (strcmp(file_extension(bitmap_filenames[i]), "png") == 0) {
+		  make_texture(bitmap_filenames[i]);
+	  }
+	  free(bitmap_filenames[i]);
+  }
 
   // NOTE: For some reason, we can't load .wav files. Not sure if they're supported, but they're a much better format to use for sound effects.
   // TODO: Figure out if they're supported, if not we may want to consider supporting it ourselves if we have time...
@@ -124,7 +133,7 @@ void main_loop() {
     game_layer->setPosition(-view.x*scale_x - scale_x*view.w/2.0f, -view.y*scale_y - scale_y*view.h/2.0f);
   }
 
-  if (!ui_state.has_keyboard_input && key[KEY_CTRL].is_down && key['p'].just_pressed) {
+  if (key[KEY_CTRL].is_down && key['p'].just_pressed) {
     if (editor_mode == SELECT_MODE) editor_mode = PLACEMENT_MODE;
     else editor_mode = SELECT_MODE;
   }
@@ -138,7 +147,7 @@ void main_loop() {
     entity_manager.top()->invisible = true;
   }
   
-  if (!ui_state.has_keyboard_input) { // Camera Control:
+  { // Camera Control:
     int dx = 0, dy = 0;
     if (key['w'].is_down) dy++;
     if (key['s'].is_down) dy--;
@@ -170,45 +179,28 @@ void main_loop() {
 
   ui_begin(0.0f, 1.0f);
   if (button("Test Button")) {
-    OutputDebugStringA("TEST!\n");
+	  OutputDebugStringA("TEST!\n");
+	  texture_number = load_textures(0);
+	  play_sound(6, false);
   }
   if (button("Test Button 2")) {
-    OutputDebugStringA("TEST 2!\n");
+	  OutputDebugStringA("TEST 2!\n");
+	  texture_number = load_textures(1);
   }
+  if (button("Test Button 3")) {
+	  OutputDebugStringA("ANOTHER TEST\n");
+	  texture_number = load_textures(2);
+  }
+
   static char buffer[256];
-  static char buffer2[256];
   static String str = {};
-  static String str2 = {};
   if (!str.str) { // On Initialization
     str = fixed_str(buffer);
     append(&str, "Type Stuff...");
-    str2 = fixed_str(buffer2);
   }
-
-  if (text_field("Test String", &str)) {
+  
+  if (text_field(&str)) {
     // Stuff Changed
-  }
-  if (text_field("Test String 2", &str2)) {
-    // Stuff Changed
-  }
-  char tmp_name[256];
-  for (int i = 0; i < 5; i++) {
-    snprintf(tmp_name, sizeof(tmp_name), "Test Str %i", i + 3);
-    text_field(tmp_name, &str);
-  }
-
-  static int value = 0;
-  if (int_edit("integer", &value)) {
-    
-  }
-  static float f = 0.0f;
-  if (float_edit("float", &f)) {
-
-  }
-
-  static bool bool_val = false;
-  if (checkbox("boolean", &bool_val)) {
-    
   }
   
   ui_end();
@@ -233,7 +225,7 @@ void main_loop() {
   if (editor_mode == PLACEMENT_MODE) {
     if (mouse.left.just_pressed) { // Place Entity:
       Entity e = {};
-      e.texture = 1;
+      e.texture = texture_number;
       e.w = e.h = rand_float()*130.0f;
       e.x = world_mouse.x - e.w/2.0f;
       e.y = world_mouse.y - e.h/2.0f;

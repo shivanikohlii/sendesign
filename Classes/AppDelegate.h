@@ -12,5 +12,7 @@ struct AppDelegate : private cocos2d::Application {
     virtual void applicationDidEnterBackground();
     virtual void applicationWillEnterForeground();
     virtual void applicationScreenSizeChanged(int new_width, int new_height);
+
+	//cocos2d::Texture2D::PixelFormat returnFormat(cocos2d::Texture2D *texture);
 };
 #endif

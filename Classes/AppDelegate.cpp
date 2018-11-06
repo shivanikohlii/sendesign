@@ -22,6 +22,9 @@ typedef unsigned char uchar;
 #include "modules/random.cpp"
 #include "modules/hash_table.cpp"
 
+#include "renderer/CCTexture2D.h"
+#include "2d/CCRenderTexture.h"
+
 // Note: This will put the cocos2d library into the global namespace:      USING_NS_CC;
 
 #include "audio/include/AudioEngine.h"
@@ -180,15 +183,26 @@ int make_texture(uchar *data, int width, int height) {
   textures.add(texture);
   return textures.length - 1;
 }
+
 int make_texture(char *name) {
   char filename[256]; //@MEMORY
   sprintf(filename, "bitmaps/%s", name);
   int pixel_width = 0, pixel_height = 0, bitdepth = 0;
   uchar *data = stbi_load(filename, &pixel_width, &pixel_height, &bitdepth, STBI_rgb_alpha);
-  assert(bitdepth == 4); // We're assuming an RGBA image
+  //assert(bitdepth == 4); // We're assuming an RGBA image
   int texture_index = make_texture(data, pixel_width, pixel_height);
   STBI_FREE(data);
   return texture_index;
+}
+
+int load_textures(int textures_index) {
+	assert(textures_index >= 0);
+	assert(textures_index < textures.length);
+
+	Dynamic_Array<char *> texture_names;
+	get_filenames_in_directory("bitmaps", &texture_names);
+
+	return make_texture(texture_names[textures_index]);
 }
 
 //
@@ -308,7 +322,7 @@ inline void set_draw_color_bytes(u8 red, u8 green, u8 blue, u8 alpha) {
 inline void enable_screen_draw() {draw_settings.screen_draw = true;}
 inline void disable_screen_draw() {draw_settings.screen_draw = false;}
 
-void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0) {
+void draw_rect(int texture, float x, float y, float w, float h) {
   assert(texture >= 0);
   assert(texture < textures.length);
   Graphics_Items *items = NULL;
@@ -328,7 +342,6 @@ void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0)
   item->sprite->setTexture(textures[texture]);
   float tw = textures[texture]->getPixelsWide();
   float th = textures[texture]->getPixelsHigh();
-  item->sprite->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
   item->sprite->setColor(draw_settings.draw_color);
   item->sprite->setOpacity(draw_settings.draw_color_opacity);
   item->sprite->setScaleX(w/tw);
@@ -337,8 +350,8 @@ void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0)
   item->sprite->setVisible(true);
   items->next_item++;
 }
-inline void draw_solid_rect(float x, float y, float w, float h, int z_order = 0) {
-  draw_rect(0, x, y, w, h, z_order);
+inline void draw_solid_rect(float x, float y, float w, float h) {
+  draw_rect(0, x, y, w, h);
 }
 
 Rect get_text_rect(char *text, float x, float y, int font_index) {
@@ -372,7 +385,7 @@ Rect get_text_rect(char *text, float x, float y, int font_index) {
   return {x, y, size.width, size.height};
 }
 
-Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
+Rect draw_text(char *text, float x, float y, int font_index) {
   assert(font_index >= 0);
   assert(font_index < fonts.length);
   Graphics_Items *items = NULL;
@@ -396,7 +409,6 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
   //@TODO: Check the overhead on these two calls:
   item->label->setTTFConfig(*fonts[font_index]);
   item->label->setString(text);
-  item->label->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
 
   item->label->setColor(draw_settings.draw_color);
   item->label->setOpacity(draw_settings.draw_color_opacity);
@@ -459,9 +471,7 @@ struct Main_Scene : cocos2d::Scene {
 
     dt = delta_time;
     total_time_elapsed += dt;
-    ui_begin_frame();
     main_loop();
-    ui_end_frame();
     reset_inputs();
     draw_immediate_mode_graphics();
   }
@@ -520,3 +530,4 @@ void AppDelegate::applicationScreenSizeChanged(int new_width, int new_height) {
   window_resolution.width = new_width;
   window_resolution.height = new_height;
 }
+
