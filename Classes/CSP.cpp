@@ -112,6 +112,7 @@ enum Editor_Mode {
   SELECT_MODE = 0, PLACEMENT_MODE = 1, NUM_EDITOR_MODES = 2
 };
 int editor_mode = SELECT_MODE;
+Entity *selected_entity = NULL;
 
 void main_loop() {
   { // Update View:
@@ -169,78 +170,45 @@ void main_loop() {
   }
 
   ui_begin(0.0f, 1.0f);
-  if (button("Test Button")) {
-    OutputDebugStringA("TEST!\n");
-  }
-  if (button("Test Button 2")) {
-    OutputDebugStringA("TEST 2!\n");
-  }
-  static char buffer[256];
-  static char buffer2[256];
-  static String str = {};
-  static String str2 = {};
-  if (!str.str) { // On Initialization
-    str = fixed_str(buffer);
-    append(&str, "Type Stuff...");
-    str2 = fixed_str(buffer2);
-  }
 
-  if (text_field("Test String", &str)) {
-    // Stuff Changed
-  }
-  if (text_field("Test String 2", &str2)) {
-    // Stuff Changed
-  }
-  char tmp_name[256];
-  for (int i = 0; i < 5; i++) {
-    snprintf(tmp_name, sizeof(tmp_name), "Test Str %i", i + 3);
-    text_field(tmp_name, &str);
-  }
-
-  static int value = 0;
-  if (int_edit("integer", &value)) {
-    
-  }
-  static float f = 0.0f;
-  if (float_edit("float", &f)) {
-
-  }
-
-  static bool bool_val = false;
-  if (checkbox("boolean", &bool_val)) {
-    
-  }
+  bool hovering = ui_state.mouse_hovering_ui;
+  checkbox("Mouse Hovering", &hovering);
   
+  if (selected_entity) {
+    Entity *s = selected_entity;
+    text("Entity Manager Index: %i", s->manager_index);
+    int_edit("Texture", &s->texture, 0, textures.length - 1);
+    float_edit("X", &s->x);
+    float_edit("Y", &s->y);
+    float_edit("W", &s->w);
+    float_edit("H", &s->h);
+    checkbox("Invisible", &s->invisible);
+  } else {
+    text("No Selected Entity...");
+  }
+  static char buffer3[256];
+  static String str3 = fixed_str(buffer3);
+  text_field("Multiline", &str3, true);
+
   ui_end();
 
-  if (key[KEY_SHIFT].is_down) {
-    for (int i = 0; i < 10; i++) {
-      draw_rect(1, 100.0f + 200.0f*sin(total_time_elapsed*0.25f*(i + 1)), 100.0f*i, 100.0f, 100.0f);
-    }
+  if (selected_entity) {
+    set_draw_color_bytes(30, 50, 210, 65);
+    draw_solid_rect(selected_entity->x, selected_entity->y, selected_entity->w, selected_entity->h);
   }
-
-  {
-    char text[256];
-    for (int i = 0; i < 10; i++) {
-      snprintf(text, sizeof(text), "TEST TEXT %i", i);
-      set_draw_color(i/10.0f, 0.7f, 0.0f, 1.0f);
-    
-      draw_text(text, 500.0f + 100.0f*sin(total_time_elapsed*3.0f), 500.0f + i*100.0f, 0);
-    }
-  }
+  
   set_draw_color_bytes(255, 255, 255, 255);
 
   if (editor_mode == PLACEMENT_MODE) {
-    if (mouse.left.just_pressed) { // Place Entity:
+    if (!ui_state.mouse_hovering_ui && mouse.left.just_pressed) { // Place Entity:
       Entity e = {};
       e.texture = 1;
       e.w = e.h = rand_float()*130.0f;
       e.x = world_mouse.x - e.w/2.0f;
       e.y = world_mouse.y - e.h/2.0f;
-      //play_sound(0);
       create_entity(&e);
     }
-    if (mouse.right.just_pressed) { // Remove Entity:
+    if (!ui_state.mouse_hovering_ui && mouse.right.just_pressed) { // Remove Entity:
       Entity *to_delete = NULL;
       float dist_s;
       for (int i = 0; i < (entity_manager.length - 1); i++) {
@@ -258,6 +226,24 @@ void main_loop() {
       }
       if (to_delete) {
 	ordered_delete_entity(to_delete);
+      }
+    }
+  } else if (editor_mode == SELECT_MODE) {
+    if (!ui_state.mouse_hovering_ui && mouse.left.just_pressed) {
+      selected_entity = NULL;
+      float dist_s;
+      for (int i = 0; i < entity_manager.length; i++) {
+	Entity *e = entity_manager[i];
+	if (world_mouse.x > e->x && world_mouse.x < (e->x + e->w) &&
+	    world_mouse.y > e->y && world_mouse.y < (e->y + e->h)) {
+	  V2 c = v2(e->x + e->w/2.0f, e->y + e->h/2.0f);
+	  V2 dpos = world_mouse - c;
+	  float d = dpos.x*dpos.x + dpos.y*dpos.y;
+	  if (!selected_entity || (dist_s > d)) {
+	    selected_entity = e;
+	    dist_s = d;
+	  }
+	}
       }
     }
   }
@@ -278,6 +264,8 @@ void main_loop() {
       s->setScaleX(e->w/tw);
       s->setScaleY(e->h/th);
       s->setTexture(textures[e->texture]);
+      cocos2d::Rect texture_rect = {0.0f, 0.0f, tw, th};
+      e->sprite->setTextureRect(texture_rect);
     }
   }
 }

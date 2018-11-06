@@ -1,3 +1,7 @@
+// TODOS:
+// -Caps Lock Support
+// -Key Repeat
+
 #define KeyCode cocos2d::EventKeyboard::KeyCode
 
 struct Input_Button {

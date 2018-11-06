@@ -80,6 +80,9 @@ inline V2 normalize(V2 v) {
   return v / m;
 }
 
+#define max_val(a, b) (((a) > (b)) ? (a) : (b))
+#define min_val(a, b) (((a) < (b)) ? (a) : (b))
+
 Rect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
 //@FIX: This calculation is incorrect:
 inline V2 screen_to_world(V2 v, Rect view1 = view) {
@@ -192,25 +195,6 @@ int make_texture(char *name) {
 }
 
 //
-// Fonts:
-//
-
-Dynamic_Array<cocos2d::TTFConfig *> fonts;
-
-int add_font(char *font_filename, int font_size) {
-  cocos2d::TTFConfig *ttf_config = new cocos2d::TTFConfig();
-  ttf_config->fontFilePath = "fonts/";
-  ttf_config->fontFilePath += font_filename;
-  ttf_config->fontSize = font_size;
-  ttf_config->glyphs = cocos2d::GlyphCollection::DYNAMIC;
-  ttf_config->outlineSize = 0;
-  ttf_config->customGlyphs = NULL;
-  ttf_config->distanceFieldEnabled = false;
-  fonts.add(ttf_config);
-  return fonts.length - 1;
-}
-
-//
 // Sound System:
 //
 
@@ -273,6 +257,13 @@ void play_sound(int sound_index, bool loop = false) {
 // Immediate Mode Graphics:
 //
 
+struct Font {
+  cocos2d::TTFConfig *ttf_config;
+  float line_height;
+  float l_width;
+};
+Dynamic_Array<Font> fonts;
+
 union Graphics_Item {
   cocos2d::Sprite *sprite;
   cocos2d::Label *label;
@@ -325,9 +316,12 @@ void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0)
     items->items.add(item);
   }
   Graphics_Item *item = items->items.data + items->next_item;
-  item->sprite->setTexture(textures[texture]);
   float tw = textures[texture]->getPixelsWide();
   float th = textures[texture]->getPixelsHigh();
+  item->sprite->setTexture(textures[texture]);
+  cocos2d::Rect texture_rect = {0.0f, 0.0f, tw, th};
+  item->sprite->setTextureRect(texture_rect);
+
   item->sprite->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
   item->sprite->setColor(draw_settings.draw_color);
   item->sprite->setOpacity(draw_settings.draw_color_opacity);
@@ -341,7 +335,12 @@ inline void draw_solid_rect(float x, float y, float w, float h, int z_order = 0)
   draw_rect(0, x, y, w, h, z_order);
 }
 
-Rect get_text_rect(char *text, float x, float y, int font_index) {
+struct Text_Information {
+  int num_lines;
+  float line_height;
+};
+
+Rect get_text_rect(char *text, float x, float y, int font_index, Text_Information *info = NULL) {
   assert(font_index >= 0);
   assert(font_index < fonts.length);
   Graphics_Items *items = NULL;
@@ -350,7 +349,7 @@ Rect get_text_rect(char *text, float x, float y, int font_index) {
 
   if (items->next_item >= items->items.length) {
     Graphics_Item item = {};
-    item.label = cocos2d::Label::createWithTTF(*fonts[font_index], text);
+    item.label = cocos2d::Label::createWithTTF(*(fonts[font_index].ttf_config), text);
     item.label->setIgnoreAnchorPointForPosition(true);
     
     //item.label->setVerticalAlignment(cocos2d::TextVAlignment::TOP);
@@ -364,10 +363,15 @@ Rect get_text_rect(char *text, float x, float y, int font_index) {
   Graphics_Item *item = items->items.data + items->next_item;
 
   //@TODO: Check the overhead on these two calls:
-  item->label->setTTFConfig(*fonts[font_index]);
+  item->label->setTTFConfig(*(fonts[font_index].ttf_config));
   item->label->setString(text);
 
   y -= (item->label->getStringNumLines() - 1)*item->label->getLineHeight(); //@HACK: Figure out a better way to ensure that multi-line text moves down from y as the number of lines increases
+  if (info) {
+    info->num_lines = item->label->getStringNumLines();
+    info->line_height = item->label->getLineHeight();
+  }
+  
   cocos2d::Size size = item->label->getContentSize();
   return {x, y, size.width, size.height};
 }
@@ -381,7 +385,7 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
 
   if (items->next_item >= items->items.length) {
     Graphics_Item item = {};
-    item.label = cocos2d::Label::createWithTTF(*fonts[font_index], text);
+    item.label = cocos2d::Label::createWithTTF(*(fonts[font_index].ttf_config), text);
     item.label->setIgnoreAnchorPointForPosition(true);
     
     //item.label->setVerticalAlignment(cocos2d::TextVAlignment::TOP);
@@ -394,7 +398,7 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
   Graphics_Item *item = items->items.data + items->next_item;
 
   //@TODO: Check the overhead on these two calls:
-  item->label->setTTFConfig(*fonts[font_index]);
+  item->label->setTTFConfig(*(fonts[font_index].ttf_config));
   item->label->setString(text);
   item->label->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
 
@@ -423,6 +427,35 @@ void draw_immediate_mode_graphics() {
     }
     items->next_item = 0;
   }
+}
+
+//
+// Fonts:
+//
+
+int add_font(char *font_filename, int font_size) {
+  Font f = {};
+  cocos2d::TTFConfig *ttf_config = new cocos2d::TTFConfig();
+  ttf_config->fontFilePath = "fonts/";
+  ttf_config->fontFilePath += font_filename;
+  ttf_config->fontSize = font_size;
+  ttf_config->glyphs = cocos2d::GlyphCollection::DYNAMIC;
+  ttf_config->outlineSize = 0;
+  ttf_config->customGlyphs = NULL;
+  ttf_config->distanceFieldEnabled = false;
+  f.ttf_config = ttf_config;
+  
+  fonts.add(f);
+  int font_index = fonts.length - 1;
+
+  bool screen_draw = draw_settings.screen_draw;
+  if (!screen_draw) enable_screen_draw();
+  fonts[font_index].l_width = get_text_rect("L", 0.0f, 0.0f, font_index).w;
+  cocos2d::Label *label = screen_label_graphics_items.items[screen_label_graphics_items.next_item].label;
+  fonts[font_index].line_height = label->getLineHeight();
+  if (!screen_draw) disable_screen_draw();
+  
+  return font_index;
 }
 
 #include "ui.cpp"
