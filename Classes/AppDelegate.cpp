@@ -18,9 +18,14 @@ typedef unsigned char uchar;
 #define STB_IMAGE_IMPLEMENTATION
 #include "libraries/stb_image.h"
 
+#define max_val(a, b) (((a) > (b)) ? (a) : (b))
+#define min_val(a, b) (((a) < (b)) ? (a) : (b))
+
 #include "modules/dynamic_array.cpp"
+#include "modules/math.cpp"
 #include "modules/random.cpp"
 #include "modules/hash_table.cpp"
+#include "modules/string.cpp"
 
 // Note: This will put the cocos2d library into the global namespace:      USING_NS_CC;
 
@@ -38,50 +43,6 @@ float total_time_elapsed = 0.0f;
 cocos2d::Scene *main_scene = NULL;
 cocos2d::Layer *game_layer = NULL;
 cocos2d::Layer *screen_layer = NULL;
-
-//
-// Math Stuff (Might Remove):
-//
-
-struct V2 {float x, y;};
-struct Rect {
-  union {
-    V2 pos;
-    struct {float x, y;};
-  };
-  union {
-    V2 dims;
-    struct {float w, h;};
-  };
-};
-inline bool point_in_rect(V2 point, Rect rect) {
-  return (point.x > rect.x && point.x < (rect.x + rect.w) &&
-	  point.y > rect.y && point.y < (rect.y + rect.h));
-}
-inline V2 v2(float x, float y) {return {x, y};}
-inline V2 operator+(V2 a, V2 b) {return v2(a.x + b.x, a.y + b.y);}
-inline V2 operator-(V2 a, V2 b) {return v2(a.x - b.x, a.y - b.y);}
-inline V2 operator*(V2 a, float b) {return v2(a.x*b, a.y*b);}
-inline V2 operator*(float a, V2 b) {return v2(b.x*a, b.y*a);}
-inline V2 operator*(V2 a, V2 b) {return v2(a.x*b.x, a.y*b.y);}
-inline V2 operator-(V2 a) {return v2(-a.x, -a.y);}
-inline V2 operator/(V2 a, float b) {return v2(a.x/b, a.y/b);}
-inline V2 operator/(V2 a, V2 b) {return v2(a.x/b.x, a.y/b.y);}
-inline V2 &operator*=(V2 &a, float b) {return (a = a*b);}
-inline V2 &operator/=(V2 &a, float b) {return (a = a/b);}
-inline V2 &operator+=(V2 &a, V2 b) {return (a = a + b);}
-inline V2 &operator-=(V2 &a, V2 b) {return (a = a - b);}
-inline bool operator==(V2 a, V2 b) {return a.x == b.x && a.y == b.y;}
-inline bool operator!=(V2 a, V2 b) {return !(a == b);}
-inline float mag(V2 v) {return sqrt(v.x*v.x + v.y*v.y);}
-inline V2 normalize(V2 v) {
-  float m = mag(v);
-  if (m == 0.0f) return v2(0.0f, 0.0f);
-  return v / m;
-}
-
-#define max_val(a, b) (((a) > (b)) ? (a) : (b))
-#define min_val(a, b) (((a) < (b)) ? (a) : (b))
 
 Rect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
 //@FIX: This calculation is incorrect:
@@ -290,6 +251,15 @@ inline void set_draw_color(float red, float green, float blue, float alpha) {
   draw_settings.draw_color.b = (u8)(blue*255.0f);
   draw_settings.draw_color_opacity = (u8)(alpha*255.0f);
 }
+inline void set_draw_color(Color4B color) {
+  draw_settings.draw_color.r = color.r;
+  draw_settings.draw_color.g = color.g;
+  draw_settings.draw_color.b = color.b;
+  draw_settings.draw_color_opacity = color.a;
+}
+inline void set_draw_color(Color4 color) {
+  set_draw_color(color4b(color));
+}
 inline void set_draw_color_bytes(u8 red, u8 green, u8 blue, u8 alpha) {
   draw_settings.draw_color.r = red;
   draw_settings.draw_color.g = green;
@@ -351,9 +321,7 @@ Rect get_text_rect(char *text, float x, float y, int font_index, Text_Informatio
     Graphics_Item item = {};
     item.label = cocos2d::Label::createWithTTF(*(fonts[font_index].ttf_config), text);
     item.label->setIgnoreAnchorPointForPosition(true);
-    
-    //item.label->setVerticalAlignment(cocos2d::TextVAlignment::TOP);
-    //item.label->setHorizontalAlignment(cocos2d::TextHAlignment::LEFT);
+	item.label->setUserData((void *)font_index); // Save the font id that this label is using
 
     if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
     else game_layer->addChild(item.label, 0);
@@ -362,9 +330,12 @@ Rect get_text_rect(char *text, float x, float y, int font_index, Text_Informatio
   }
   Graphics_Item *item = items->items.data + items->next_item;
 
-  //@TODO: Check the overhead on these two calls:
-  item->label->setTTFConfig(*(fonts[font_index].ttf_config));
-  item->label->setString(text);
+  // Check the id of the font that the label is using, only change the font if the ids don't match:
+  if ((int)item->label->getUserData() != font_index) {
+	  item->label->setTTFConfig(*(fonts[font_index].ttf_config));
+	  item->label->setUserData((void *)font_index);
+  }
+  if (!match(item->label->getString(), text)) item->label->setString(text);
 
   y -= (item->label->getStringNumLines() - 1)*item->label->getLineHeight(); //@HACK: Figure out a better way to ensure that multi-line text moves down from y as the number of lines increases
   if (info) {
@@ -387,9 +358,7 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
     Graphics_Item item = {};
     item.label = cocos2d::Label::createWithTTF(*(fonts[font_index].ttf_config), text);
     item.label->setIgnoreAnchorPointForPosition(true);
-    
-    //item.label->setVerticalAlignment(cocos2d::TextVAlignment::TOP);
-    //item.label->setHorizontalAlignment(cocos2d::TextHAlignment::LEFT);
+	item.label->setUserData((void *)font_index); // Save the font id that this label is using
 
     if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
     else game_layer->addChild(item.label, 0);
@@ -397,9 +366,13 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
   }
   Graphics_Item *item = items->items.data + items->next_item;
 
-  //@TODO: Check the overhead on these two calls:
-  item->label->setTTFConfig(*(fonts[font_index].ttf_config));
-  item->label->setString(text);
+  // Check the id of the font that the label is using, only change the font if the ids don't match:
+  if ((int)item->label->getUserData() != font_index) {
+	  item->label->setTTFConfig(*(fonts[font_index].ttf_config));
+	  item->label->setUserData((void *)font_index);
+  }
+  if (!match(item->label->getString(), text)) item->label->setString(text);
+
   item->label->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
 
   item->label->setColor(draw_settings.draw_color);

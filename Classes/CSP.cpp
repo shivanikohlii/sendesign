@@ -10,6 +10,8 @@ struct Entity {
   float y;
   float w;
   float h;
+  Color4B color;
+  int z_order;
   bool invisible;
 };
 Dynamic_Array<Entity *> entity_manager;
@@ -97,6 +99,7 @@ bool initialize() {
   Entity e = {};
   e.texture = 1;
   e.w = e.h = 100.0f;
+  e.color = Color4B::WHITE;
   create_entity(&e);
   create_entity(&e);
   
@@ -169,7 +172,7 @@ void main_loop() {
     }
   }
 
-  ui_begin(0.0f, 1.0f);
+  ui_begin(0.03f, 1.0f);
 
   bool hovering = ui_state.mouse_hovering_ui;
   checkbox("Mouse Hovering", &hovering);
@@ -182,6 +185,11 @@ void main_loop() {
     float_edit("Y", &s->y);
     float_edit("W", &s->w);
     float_edit("H", &s->h);
+    u8_edit("R", &s->color.r);
+    u8_edit("G", &s->color.g);
+    u8_edit("B", &s->color.b);
+    u8_edit("A", &s->color.a);
+    int_edit("Z", &s->z_order);
     checkbox("Invisible", &s->invisible);
   } else {
     text("No Selected Entity...");
@@ -193,7 +201,8 @@ void main_loop() {
   ui_end();
 
   if (selected_entity) {
-    set_draw_color_bytes(30, 50, 210, 65);
+    //set_draw_color_bytes(30, 50, 210, 65);
+    set_draw_color_bytes(222, 222, 222, 30);
     draw_solid_rect(selected_entity->x, selected_entity->y, selected_entity->w, selected_entity->h);
   }
   
@@ -206,6 +215,7 @@ void main_loop() {
       e.w = e.h = rand_float()*130.0f;
       e.x = world_mouse.x - e.w/2.0f;
       e.y = world_mouse.y - e.h/2.0f;
+      e.color = Color4B::WHITE;
       create_entity(&e);
     }
     if (!ui_state.mouse_hovering_ui && mouse.right.just_pressed) { // Remove Entity:
@@ -260,6 +270,10 @@ void main_loop() {
     e->sprite->setVisible(!e->invisible);
     e->sprite->setPosition(cocos2d::Vec2(e->x, e->y) - cocos2d::Vec2((tw - e->w)/2.0f,
 								     (th - e->h)/2.0f));
+    cocos2d::Color3B c = {e->color.r, e->color.g, e->color.b};
+    e->sprite->setColor(c);
+    e->sprite->setOpacity(e->color.a);
+    e->sprite->setZOrder(e->z_order); //@DEPRECATED @DEPRECATED @DEPRECATED
     if (e->texture >= 0 && e->texture < textures.length) {
       s->setScaleX(e->w/tw);
       s->setScaleY(e->h/th);
