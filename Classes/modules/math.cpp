@@ -224,3 +224,10 @@ inline Color4B &operator*=(Color4B &a, u8 b) {return (a = a*b);}
 inline Color4B &operator/=(Color4B &a, u8 b) {return (a = a/b);}
 inline Color4B &operator+=(Color4B &a, Color4B b) {return (a = a + b);}
 inline Color4B &operator-=(Color4B &a, Color4B b) {return (a = a - b);}
+
+// This is a little random but I can't think of a better place for it:
+bool is_power_of_2(int n) {
+  while ((n % 2) == 0) n /= 2;
+  if (n > 1) return false;
+  return true;
+}

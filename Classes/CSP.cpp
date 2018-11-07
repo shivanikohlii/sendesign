@@ -81,7 +81,16 @@ bool initialize() {
     for (int i = 0; i < sizeof(data); i++) data[i] = 255;
     make_texture(data, W, H);
   }
-  make_texture("sun.png");
+
+  //@TODO: Support other image formats? (jpg, gif, bmp, etc.)
+  Dynamic_Array<char *> bitmap_filenames;
+  get_filenames_in_directory("bitmaps", &bitmap_filenames);
+  for (int i = 0; i < bitmap_filenames.length; i++) {
+    if (strcmp(file_extension(bitmap_filenames[i]), "png") == 0) {
+      make_texture(bitmap_filenames[i]);
+    }
+    free(bitmap_filenames[i]);
+  }
 
   // NOTE: For some reason, we can't load .wav files. Not sure if they're supported, but they're a much better format to use for sound effects.
   // TODO: Figure out if they're supported, if not we may want to consider supporting it ourselves if we have time...
@@ -116,6 +125,7 @@ enum Editor_Mode {
 };
 int editor_mode = SELECT_MODE;
 Entity *selected_entity = NULL;
+int texture_number = 0;
 
 void main_loop() {
   { // Update View:
@@ -174,8 +184,11 @@ void main_loop() {
 
   ui_begin(0.03f, 1.0f);
 
+  text("Immediate Mode GUI Demo:");
   bool hovering = ui_state.mouse_hovering_ui;
   checkbox("Mouse Hovering", &hovering);
+  bool has_keyboard_input = ui_state.has_keyboard_input;
+  checkbox("Has Keyboard Input", &has_keyboard_input);
   
   if (selected_entity) {
     Entity *s = selected_entity;
@@ -185,21 +198,27 @@ void main_loop() {
     float_edit("Y", &s->y);
     float_edit("W", &s->w);
     float_edit("H", &s->h);
-    u8_edit("R", &s->color.r);
-    u8_edit("G", &s->color.g);
-    u8_edit("B", &s->color.b);
-    u8_edit("A", &s->color.a);
+    color_edit("Color", &s->color);
     int_edit("Z", &s->z_order);
     checkbox("Invisible", &s->invisible);
   } else {
     text("No Selected Entity...");
   }
-  static char buffer3[256];
-  static String str3 = fixed_str(buffer3);
-  text_field("Multiline", &str3, true);
+  static bool tab_is_open = false;
+  if (button(tab_is_open ? "Close Tab" : "Open Tab")) tab_is_open = !tab_is_open;
+  if (tab_is_open) {
+    if (button("Texture 1")) texture_number = 1;
+    if (button("Texture 2")) texture_number = 2;
+    if (button("Texture 3")) texture_number = 3;
+    static char buffer3[256];
+    static String str3 = fixed_str(buffer3);
+    text_field("Multiline", &str3, true);
+  }
 
   ui_end();
 
+  entity_manager.top()->texture = texture_number;
+  
   if (selected_entity) {
     //set_draw_color_bytes(30, 50, 210, 65);
     set_draw_color_bytes(222, 222, 222, 30);
@@ -211,7 +230,7 @@ void main_loop() {
   if (editor_mode == PLACEMENT_MODE) {
     if (!ui_state.mouse_hovering_ui && mouse.left.just_pressed) { // Place Entity:
       Entity e = {};
-      e.texture = 1;
+      e.texture = texture_number;
       e.w = e.h = rand_float()*130.0f;
       e.x = world_mouse.x - e.w/2.0f;
       e.y = world_mouse.y - e.h/2.0f;
@@ -273,7 +292,7 @@ void main_loop() {
     cocos2d::Color3B c = {e->color.r, e->color.g, e->color.b};
     e->sprite->setColor(c);
     e->sprite->setOpacity(e->color.a);
-    e->sprite->setZOrder(e->z_order); //@DEPRECATED @DEPRECATED @DEPRECATED
+	e->sprite->setLocalZOrder(e->z_order);
     if (e->texture >= 0 && e->texture < textures.length) {
       s->setScaleX(e->w/tw);
       s->setScaleY(e->h/th);

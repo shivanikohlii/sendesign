@@ -20,6 +20,7 @@ typedef unsigned char uchar;
 
 #define max_val(a, b) (((a) > (b)) ? (a) : (b))
 #define min_val(a, b) (((a) < (b)) ? (a) : (b))
+#define array_size(a) ((sizeof(a))/(sizeof((a)[0])))
 
 #include "modules/dynamic_array.cpp"
 #include "modules/math.cpp"
@@ -139,7 +140,7 @@ Dynamic_Array<cocos2d::Texture2D *> textures;
 int make_texture(uchar *data, int width, int height) {
   cocos2d::Texture2D *texture = new cocos2d::Texture2D();
   texture->initWithData(data, 4*width*height, cocos2d::Texture2D::PixelFormat::RGBA8888, width, height, cocos2d::Size(width, height));
-  if ((width % 2) == 0 && (height % 2) == 0) texture->generateMipmap(); // NOTE: This call will cause a crash if it's called with an image that isn't a multiple of 2 in both dimensions...
+  if (is_power_of_2(width) && is_power_of_2(height)) texture->generateMipmap(); // NOTE: This call will cause a crash if it's called with an image that isn't a power of 2 in both dimensions...
                                                                         // TODO: (We may want to print an error message in that case)
   textures.add(texture);
   return textures.length - 1;
@@ -149,7 +150,6 @@ int make_texture(char *name) {
   sprintf(filename, "bitmaps/%s", name);
   int pixel_width = 0, pixel_height = 0, bitdepth = 0;
   uchar *data = stbi_load(filename, &pixel_width, &pixel_height, &bitdepth, STBI_rgb_alpha);
-  assert(bitdepth == 4); // We're assuming an RGBA image
   int texture_index = make_texture(data, pixel_width, pixel_height);
   STBI_FREE(data);
   return texture_index;
@@ -292,7 +292,7 @@ void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0)
   cocos2d::Rect texture_rect = {0.0f, 0.0f, tw, th};
   item->sprite->setTextureRect(texture_rect);
 
-  item->sprite->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
+  item->sprite->setLocalZOrder(z_order);
   item->sprite->setColor(draw_settings.draw_color);
   item->sprite->setOpacity(draw_settings.draw_color_opacity);
   item->sprite->setScaleX(w/tw);
@@ -373,7 +373,7 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
   }
   if (!match(item->label->getString(), text)) item->label->setString(text);
 
-  item->label->setZOrder(z_order); //@DEPRECATED @DEPRECATED @DEPRECATED: setZOrder was set as deprecated, replace this!
+  item->label->setLocalZOrder(z_order);
 
   item->label->setColor(draw_settings.draw_color);
   item->label->setOpacity(draw_settings.draw_color_opacity);

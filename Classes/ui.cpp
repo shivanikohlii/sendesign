@@ -94,13 +94,14 @@ bool handle_text_input(String *buffer, int *caret, bool multiline = true, bool *
 // Actual UI Library:
 //
 
-#define UI_WIDTH 0.2f
-#define UI_HEIGHT 0.035f
+#define UI_PAD_X 0.15f
 #define UI_FONT 0
 
 struct UI_State {
   float x = 0.0f;
   float y = 1.0f;
+  float width = 0.2f;
+  float height = 0.035f;
   bool prev_screen_draw = false;
   bool has_keyboard_input = false;
   int caret_index = 0;
@@ -113,7 +114,7 @@ struct UI_State {
 
 inline void ui_begin(float x, float y) {
   ui_state.x = x*window_resolution.width;
-  ui_state.y = y*window_resolution.height - UI_HEIGHT*window_resolution.height;
+  ui_state.y = y*window_resolution.height - ui_state.height*window_resolution.height;
 }
 inline void ui_end() {}
 
@@ -134,13 +135,13 @@ inline void ui_end_frame() {
 }
 
 inline Rect ui_begin_element() {
-  Rect r = {ui_state.x, ui_state.y, UI_WIDTH*window_resolution.width, UI_HEIGHT*window_resolution.height};
+  Rect r = {ui_state.x, ui_state.y, ui_state.width*window_resolution.width, ui_state.height*window_resolution.height};
   ui_state.prev_screen_draw = draw_settings.screen_draw;
   enable_screen_draw();
   return r;
 }
 inline void ui_end_element(float h = 0.0f) {
-  if (h == 0.0f) h = UI_HEIGHT*window_resolution.height;
+  if (h == 0.0f) h = ui_state.height*window_resolution.height;
   ui_state.y -= h;
   if (!ui_state.prev_screen_draw) disable_screen_draw();
 }
@@ -148,11 +149,16 @@ bool button(char *name) {
   Rect r = ui_begin_element();
   bool in_rect = point_in_rect(v2(mouse.x, mouse.y), r);
   if (in_rect) ui_state.prev_mouse_hovering_ui = true;
-  if (in_rect) set_draw_color_bytes(245, 175, 50, 255);
-  else set_draw_color_bytes(210, 130, 20, 255);
+  if (in_rect) {
+    if (mouse.left.is_down) set_draw_color_bytes(247, 220, 80, 255); 
+    else set_draw_color_bytes(245, 175, 50, 255);
+  } else {
+    set_draw_color_bytes(210, 130, 20, 255);
+  }
   draw_solid_rect(ui_state.x, ui_state.y, r.w, r.h);
   set_draw_color_bytes(255, 255, 255, 255);
-  draw_text(name, ui_state.x, ui_state.y, UI_FONT, 1);
+  float start_x = ui_state.x + ui_state.height*window_resolution.height*UI_PAD_X;
+  draw_text(name, start_x, ui_state.y, UI_FONT, 1);
   ui_end_element();
   return point_in_rect(v2(mouse.x, mouse.y), r) && mouse.left.just_pressed;
 }
@@ -167,37 +173,41 @@ void text(char *fmt, ...) {
   set_draw_color_bytes(255, 255, 255, 255);
   char buffer[1024]; //@MEMORY
   vsprintf(buffer, fmt, arg_list);
-  draw_text(buffer, ui_state.x, ui_state.y, UI_FONT, 1);
+  float start_x = ui_state.x + ui_state.height*window_resolution.height*UI_PAD_X;
+  draw_text(buffer, start_x, ui_state.y, UI_FONT, 1);
   va_end(arg_list);
 
   ui_end_element();
 }
 
-bool text_field(char *name, String *str, bool multiline = false) {
+bool text_field(char *name, String *str, bool multiline = false, char *hash_string = NULL) {
+  hash_string = hash_string ? hash_string : name;
   Rect r = ui_begin_element();
 
   Text_Information text_info;
   Rect str_text_rect = get_text_rect(str->str, 0.0f, 0.0f, UI_FONT, &text_info);
   r.y += str_text_rect.y;
   r.h += (text_info.num_lines - 1)*text_info.line_height;
-  if (point_in_rect(v2(mouse.x, mouse.y), r)) ui_state.prev_mouse_hovering_ui = true;
-  
-  set_draw_color_bytes(210, 130, 20, 255);
+  bool mouse_hovering = point_in_rect(v2(mouse.x, mouse.y), r);
+  if (mouse_hovering) ui_state.prev_mouse_hovering_ui = true;
+
+  if (mouse_hovering) set_draw_color_bytes(245, 175, 50, 255);
+  else set_draw_color_bytes(210, 130, 20, 255);
   draw_solid_rect(ui_state.x, r.y, r.w, r.h);
   set_draw_color_bytes(255, 255, 255, 255);
 
-  
   float l_width = fonts[UI_FONT].l_width;
-  Rect name_text_rect = draw_text(name, ui_state.x, ui_state.y, UI_FONT, 1);
+  float start_x = ui_state.x + ui_state.height*window_resolution.height*UI_PAD_X;
+  Rect name_text_rect = draw_text(name, start_x, ui_state.y, UI_FONT, 1);
   str_text_rect = draw_text(str->str, name_text_rect.x + name_text_rect.w + l_width*2.0f, ui_state.y, UI_FONT, 1);
   float x = str_text_rect.x;
   float y = ui_state.y;
 
-  bool selected = strcmp(ui_state.item_with_keyboard_input, name) == 0;
+  bool selected = strcmp(ui_state.item_with_keyboard_input, hash_string) == 0;
   if (mouse.left.just_pressed) {
     if (point_in_rect(v2(mouse.x, mouse.y), r)) {
       selected = true;
-      strncpy(ui_state.item_with_keyboard_input, name, sizeof(ui_state.item_with_keyboard_input));
+      strncpy(ui_state.item_with_keyboard_input, hash_string, sizeof(ui_state.item_with_keyboard_input));
       ui_state.just_changed_ui_input_focus = true;
       ui_state.has_keyboard_input = true;
       
@@ -227,6 +237,10 @@ bool text_field(char *name, String *str, bool multiline = false) {
     changed = handle_text_input(str, &ui_state.caret_index, multiline, &caret_changed);
     if (changed || caret_changed) ui_state.time_since_text_field_change = 0.0f;
     if (!multiline && key['\n'].just_pressed) {
+      ui_state.has_keyboard_input = false;
+      ui_state.item_with_keyboard_input[0] = 0;
+    }
+    if (key[KEY_ESCAPE].just_pressed) {
       ui_state.has_keyboard_input = false;
       ui_state.item_with_keyboard_input[0] = 0;
     }
@@ -276,17 +290,18 @@ bool text_field(char *name, String *str, bool multiline = false) {
 inline int compare_names(char *str1, char *str2) { return strcmp(str1, str2); }
 Hash_Table<char *, String> ui_str_buffer_storage(djb2_hash, compare_names);
 
-bool int_edit(char *name, int *value, int min_val = -INT_MAX, int max_val = INT_MAX) {
-  String *str_edit_buffer = ui_str_buffer_storage.retrieve(name);
+bool int_edit(char *name, int *value, int min_val = -INT_MAX, int max_val = INT_MAX, char *hash_string = NULL) {
+  hash_string = hash_string ? hash_string : name;
+  String *str_edit_buffer = ui_str_buffer_storage.retrieve(hash_string);
   if (!str_edit_buffer) {
     String str;
     str.memory_size = 256;
     str.length = 0;
     str.str = (char *)malloc(str.memory_size);
-    str_edit_buffer = ui_str_buffer_storage.add(name, str);
+    str_edit_buffer = ui_str_buffer_storage.add(hash_string, str);
   }
 
-  bool selected = strcmp(ui_state.item_with_keyboard_input, name) == 0;
+  bool selected = strcmp(ui_state.item_with_keyboard_input, hash_string) == 0;
 
   if (!selected) {
     //@OPTIMIZE: Save the integer and only convert to a string when necessary
@@ -294,7 +309,7 @@ bool int_edit(char *name, int *value, int min_val = -INT_MAX, int max_val = INT_
     str_edit_buffer->length = strlen(str_edit_buffer->str);
   }
   
-  if (text_field(name, str_edit_buffer)) {
+  if (text_field(name, str_edit_buffer, false, hash_string)) {
     char *parsed_to = NULL;
     long int val = strtol(str_edit_buffer->str, &parsed_to, 10);
     *value = (int)val;
@@ -309,10 +324,56 @@ bool int_edit(char *name, int *value, int min_val = -INT_MAX, int max_val = INT_
   }
   return false;
 }
-bool u8_edit(char *name, u8 *value, u8 min_val = 0, u8 max_val = UCHAR_MAX) {
+bool u8_edit(char *name, u8 *value, u8 min_val = 0, u8 max_val = UCHAR_MAX, char *hash_string = NULL) {
   int int_val = *value;
-  bool changed = int_edit(name, &int_val, min_val, max_val);
+  bool changed = int_edit(name, &int_val, min_val, max_val, hash_string);
   *value = (u8)int_val;
+  return changed;
+}
+bool color_edit(char *name, Color4B *color) {
+  char name_buffer[256];
+  String name_str = fixed_str(name_buffer);
+  append(&name_str, name);
+  int name_length = name_str.length;
+  bool changed = false;
+  float prev_ui_state_x = ui_state.x;
+  float prev_ui_state_width = ui_state.width;
+  float ui_height = ui_state.height*window_resolution.height;
+  float w = ui_height*0.9f;
+  float x = ui_state.x + ui_state.width*window_resolution.width - w - ui_height*UI_PAD_X;
+  float y = ui_state.y + (ui_height - w)/2.0f;
+  text("%s:", name);
+  bool prev_screen_draw = draw_settings.screen_draw;
+  enable_screen_draw();
+  set_draw_color(*color);
+  draw_solid_rect(x, y, w, w, 1);
+  if (!prev_screen_draw) disable_screen_draw();
+  
+  ui_state.width *= 0.25f;
+  
+  append(&name_str, "__R");
+  if (u8_edit("R", &color->r, 0, UCHAR_MAX, name_str.str)) changed = true;
+  ui_state.y += ui_state.height*window_resolution.height;
+  ui_state.x += ui_state.width*window_resolution.width;
+  
+  name_str.length = name_length;
+  append(&name_str, "__G");
+  if (u8_edit("G", &color->g, 0, UCHAR_MAX, name_str.str)) changed = true;
+  ui_state.y += ui_state.height*window_resolution.height;
+  ui_state.x += ui_state.width*window_resolution.width;
+  
+  name_str.length = name_length;
+  append(&name_str, "__B");
+  if (u8_edit("B", &color->b, 0, UCHAR_MAX, name_str.str)) changed = true;
+  ui_state.y += ui_state.height*window_resolution.height;
+  ui_state.x += ui_state.width*window_resolution.width;
+    
+  name_str.length = name_length;
+  append(&name_str, "__A");
+  if (u8_edit("A", &color->a, 0, UCHAR_MAX, name_str.str)) changed = true;
+  ui_state.x = prev_ui_state_x;
+  ui_state.width = prev_ui_state_width;
+
   return changed;
 }
 
@@ -354,12 +415,13 @@ bool checkbox(char *name, bool *value) {
   else set_draw_color_bytes(210, 130, 20, 255);
   draw_solid_rect(ui_state.x, ui_state.y, r.w, r.h);
   set_draw_color_bytes(255, 255, 255, 255);
-  Rect text_rect = draw_text(name, ui_state.x, ui_state.y, UI_FONT, 1);
+  float start_x = ui_state.x + ui_state.height*window_resolution.height*UI_PAD_X;
+  Rect text_rect = draw_text(name, start_x, ui_state.y, UI_FONT, 1);
 
-  float ui_height = UI_HEIGHT*window_resolution.height;
+  float ui_height = ui_state.height*window_resolution.height;
   float w1 = ui_height*0.9f;
   float w2 = w1*0.72f;
-  float x = r.x + r.w - w1 - ui_height*0.1f;
+  float x = r.x + r.w - w1 - ui_height*UI_PAD_X;
   float y = ui_state.y + (ui_height - w1) / 2.0f;
   set_draw_color_bytes(210, 210, 210, 255);
   draw_solid_rect(x, y, w1, w1, 1);
