@@ -22,6 +22,25 @@ A teacher who wants to teach their students loops. They want the game to have so
      -"Windows Universal C Runtime"
    -Under "Compilers, build tools, and runtimes":
      -"Windows Universal CRT SDK"
+
+# Current Functions in the UI
+* Checkbox(String, pointer* boolean) return boolean
+* float_edit(String, pointer* float) return boolean
+* float_edit(String, pointer* int min (optional), int max (optional)) return boolean
+* text(format String ...) return;
+* button(String) return boolean (clicked)
+* text_field(String name, string pointer, boolean multiple lines, ) return boolean(string edit)
+* unsigned8_edit(String name, u8 value,(optional) int min, (optional) int max) return boolean
+ (u8 value means an unnsigned 8 bit integer)
+* colorEdit(name,rbga values pointer) return boolean
+# Features we are working on for the UI
+[checkbox:unchecked] Dropdown menu
+# Features we are working on 
+[checkbox:unchecked] Control Schemes
+[checkbox:unchecked] Adding duplication functionality
+[checkbox:unchecked] Changing placemenet of asset
+[checkbox:unchecked] allowing user to select size of asset
+[checkbox:unchecked] grid locking
 ## Authors
 
 * **Shivani Kohli** 
