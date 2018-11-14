@@ -12,6 +12,7 @@ struct String {
   int memory_size;
 };
 
+inline int string_compare(char *str1, char *str2) { return strcmp(str1, str2); }
 inline String make_string(char *str_buffer, int length, int memory_size) {
   String str;
   str.str = str_buffer;

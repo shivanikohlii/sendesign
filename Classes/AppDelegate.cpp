@@ -46,12 +46,26 @@ cocos2d::Layer *game_layer = NULL;
 cocos2d::Layer *screen_layer = NULL;
 
 Rect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
-//@FIX: This calculation is incorrect:
+
 inline V2 screen_to_world(V2 v, Rect view1 = view) {
-  float scale_x = window_resolution.width / view1.w;
-  float scale_y = window_resolution.height / view1.h;
-  return v2(view1.x + view.w/2.0f*scale_x + v.x/scale_x,
-	    view1.y + view.h/2.0f*scale_y + v.y/scale_y);
+  return v2(view1.x + v.x/window_resolution.width*view1.w,
+	    view1.y + v.y/window_resolution.height*view1.h);
+}
+inline Rect screen_to_world(Rect r1, Rect view1 = view) {
+  return make_rect(view1.x + r1.x/window_resolution.width*view1.w,
+		   view1.y + r1.y/window_resolution.height*view1.h,
+		   r1.w/window_resolution.width*view1.w,
+		   r1.h/window_resolution.height*view1.h);
+}
+inline V2 world_to_screen(V2 v, Rect view1 = view) {
+  return v2((window_resolution.width*(v.x - view1.x))/view1.w,
+	    (window_resolution.height*(v.y - view1.y))/view1.h);
+}
+inline Rect world_to_screen(Rect r1, Rect view1 = view) {
+  return make_rect((window_resolution.width*(r1.x - view1.x))/view1.w,
+		   (window_resolution.height*(r1.y - view1.y))/view1.h,
+		   (r1.w*window_resolution.width)/view1.w,
+		   (r1.h*window_resolution.height)/view1.h);
 }
 
 //
@@ -269,7 +283,7 @@ inline void set_draw_color_bytes(u8 red, u8 green, u8 blue, u8 alpha) {
 inline void enable_screen_draw() {draw_settings.screen_draw = true;}
 inline void disable_screen_draw() {draw_settings.screen_draw = false;}
 
-void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0) {
+void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0, float rotation = 0.0f) {
   assert(texture >= 0);
   assert(texture < textures.length);
   Graphics_Items *items = NULL;
@@ -282,7 +296,7 @@ void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0)
     item.sprite->setIgnoreAnchorPointForPosition(true);
     
     if (draw_settings.screen_draw) screen_layer->addChild(item.sprite, 0);
-    else game_layer->addChild(item.sprite, 0);
+    else main_scene->addChild(item.sprite, 0);
     items->items.add(item);
   }
   Graphics_Item *item = items->items.data + items->next_item;
@@ -291,18 +305,20 @@ void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0)
   item->sprite->setTexture(textures[texture]);
   cocos2d::Rect texture_rect = {0.0f, 0.0f, tw, th};
   item->sprite->setTextureRect(texture_rect);
+  item->sprite->setRotation(rotation);
 
   item->sprite->setLocalZOrder(z_order);
   item->sprite->setColor(draw_settings.draw_color);
   item->sprite->setOpacity(draw_settings.draw_color_opacity);
+  
   item->sprite->setScaleX(w/tw);
   item->sprite->setScaleY(h/th);
-  item->sprite->setPosition(cocos2d::Vec2(x, y) - cocos2d::Vec2((tw - w)/2.0f, (th - h)/2.0f)); //@CHECK: This might be incorrect
+  item->sprite->setPosition(cocos2d::Vec2(x, y) - cocos2d::Vec2((tw - w)/2.0f, (th - h)/2.0f));
   item->sprite->setVisible(true);
   items->next_item++;
 }
-inline void draw_solid_rect(float x, float y, float w, float h, int z_order = 0) {
-  draw_rect(0, x, y, w, h, z_order);
+inline void draw_solid_rect(float x, float y, float w, float h, int z_order = 0, float rotation = 0.0f) {
+  draw_rect(0, x, y, w, h, z_order, rotation);
 }
 
 struct Text_Information {
@@ -324,7 +340,7 @@ Rect get_text_rect(char *text, float x, float y, int font_index, Text_Informatio
 	item.label->setUserData((void *)font_index); // Save the font id that this label is using
 
     if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
-    else game_layer->addChild(item.label, 0);
+    else main_scene->addChild(item.label, 0);
     items->items.add(item);
     item.label->setVisible(false);
   }
@@ -361,7 +377,7 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
 	item.label->setUserData((void *)font_index); // Save the font id that this label is using
 
     if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
-    else game_layer->addChild(item.label, 0);
+    else main_scene->addChild(item.label, 0);
     items->items.add(item);
   }
   Graphics_Item *item = items->items.data + items->next_item;
@@ -378,7 +394,7 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
   item->label->setColor(draw_settings.draw_color);
   item->label->setOpacity(draw_settings.draw_color_opacity);
   y -= (item->label->getStringNumLines() - 1)*item->label->getLineHeight(); //@HACK: Figure out a better way to ensure that multi-line text moves down from y as the number of lines increases
-  item->label->setPosition(cocos2d::Vec2(x, y)); //@FIX: This is probably incorrect
+  item->label->setPosition(cocos2d::Vec2(x, y));
   item->label->setVisible(true);
   items->next_item++;
   cocos2d::Size size = item->label->getContentSize();
@@ -444,16 +460,15 @@ struct Main_Scene : cocos2d::Scene {
   }
   virtual bool init() {
     main_scene = this;
-    auto listener = cocos2d::EventListenerMouse::create();
-
-    listener->onMouseDown = on_mouse_down;
-    listener->onMouseMove = on_mouse_move;
-    listener->onMouseScroll = on_mouse_scroll;
-    listener->onMouseUp = on_mouse_up;
-    _eventDispatcher->addEventListenerWithFixedPriority(listener, 1);
+    
+    auto mouse_listener = cocos2d::EventListenerMouse::create();
+    mouse_listener->onMouseDown = on_mouse_down;
+    mouse_listener->onMouseMove = on_mouse_move;
+    mouse_listener->onMouseScroll = on_mouse_scroll;
+    mouse_listener->onMouseUp = on_mouse_up;
+    _eventDispatcher->addEventListenerWithFixedPriority(mouse_listener, 1);
 
     auto keyboard_listener = cocos2d::EventListenerKeyboard::create();
-    
     keyboard_listener->onKeyPressed = on_key_pressed;
     keyboard_listener->onKeyReleased = on_key_released;
     _eventDispatcher->addEventListenerWithFixedPriority(keyboard_listener, 1);
@@ -465,6 +480,7 @@ struct Main_Scene : cocos2d::Scene {
 
     dt = delta_time;
     total_time_elapsed += dt;
+    update_bindings();
     ui_begin_frame();
     main_loop();
     ui_end_frame();
@@ -507,6 +523,7 @@ bool AppDelegate::applicationDidFinishLaunching() {
   register_all_packages();
 
   main_scene = Main_Scene::create();
+  
   director->runWithScene(main_scene);
 
   return true;

@@ -15,6 +15,8 @@
 // struct Color3B {u8 r, g, b;};
 // struct Color4B {u8 r, g, b, a;};
 
+#define PI 3.14159265358979323846264338327950288f
+
 union V2 {
   struct {float x, y;};
   float f[2];
@@ -110,10 +112,7 @@ struct Rect {
     struct {float w, h;};
   };
 };
-inline bool point_in_rect(V2 point, Rect rect) {
-  return (point.x > rect.x && point.x < (rect.x + rect.w) &&
-	  point.y > rect.y && point.y < (rect.y + rect.h));
-}
+
 inline V2 v2(float x, float y) {return {x, y};}
 inline V2 v2(float i) {return {i, i};}
 inline V2 operator+(V2 a, V2 b) {return v2(a.x + b.x, a.y + b.y);}
@@ -224,6 +223,25 @@ inline Color4B &operator*=(Color4B &a, u8 b) {return (a = a*b);}
 inline Color4B &operator/=(Color4B &a, u8 b) {return (a = a/b);}
 inline Color4B &operator+=(Color4B &a, Color4B b) {return (a = a + b);}
 inline Color4B &operator-=(Color4B &a, Color4B b) {return (a = a - b);}
+
+inline Rect make_rect(float x, float y, float w, float h) {return {x, y, w, h};}
+
+inline V2 rotate_point(V2 point, V2 center, float sin_theta, float cos_theta) {
+  return v2((point.x - center.x)*cos_theta - (point.y - center.y)*sin_theta + center.x,
+	    (point.x - center.x)*sin_theta + (point.y - center.y)*cos_theta + center.y);
+}
+inline V2 rotate_point(V2 point, V2 center, float theta) {
+  return rotate_point(point, center, sinf(theta), cosf(theta));
+}
+inline bool point_in_rect(V2 point, Rect rect) {
+  return (point.x > rect.x && point.x < (rect.x + rect.w) &&
+	  point.y > rect.y && point.y < (rect.y + rect.h));
+}
+inline bool point_in_rect(V2 point, Rect rect, float theta) {
+  if (theta == 0.0f) return point_in_rect(point, rect);
+  return point_in_rect(rotate_point(point, v2(rect.x + rect.w/2.0f, rect.y + rect.h/2.0f),
+				    -theta), rect);
+}
 
 // This is a little random but I can't think of a better place for it:
 bool is_power_of_2(int n) {

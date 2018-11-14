@@ -287,8 +287,7 @@ bool text_field(char *name, String *str, bool multiline = false, char *hash_stri
   return changed;
 }
 
-inline int compare_names(char *str1, char *str2) { return strcmp(str1, str2); }
-Hash_Table<char *, String> ui_str_buffer_storage(djb2_hash, compare_names);
+Hash_Table<char *, String> ui_str_buffer_storage(djb2_hash, string_compare);
 
 bool int_edit(char *name, int *value, int min_val = -INT_MAX, int max_val = INT_MAX, char *hash_string = NULL) {
   hash_string = hash_string ? hash_string : name;
@@ -324,12 +323,33 @@ bool int_edit(char *name, int *value, int min_val = -INT_MAX, int max_val = INT_
   }
   return false;
 }
-bool u8_edit(char *name, u8 *value, u8 min_val = 0, u8 max_val = UCHAR_MAX, char *hash_string = NULL) {
+bool unsigned8_edit(char *name, u8 *value, u8 min_val = 0, u8 max_val = UCHAR_MAX, char *hash_string = NULL) {
   int int_val = *value;
   bool changed = int_edit(name, &int_val, min_val, max_val, hash_string);
   *value = (u8)int_val;
   return changed;
 }
+
+#if 0
+struct Color4B {
+  u8 r;
+  u8 g;
+  u8 b;
+  u8 a;
+};
+struct Color3B {
+  u8 r;
+  u8 g;
+  u8 b;
+};
+struct Color4 {
+  float r;
+  float g;
+  float b;
+  float a;
+};
+#endif
+
 bool color_edit(char *name, Color4B *color) {
   char name_buffer[256];
   String name_str = fixed_str(name_buffer);
@@ -352,32 +372,32 @@ bool color_edit(char *name, Color4B *color) {
   ui_state.width *= 0.25f;
   
   append(&name_str, "__R");
-  if (u8_edit("R", &color->r, 0, UCHAR_MAX, name_str.str)) changed = true;
+  if (unsigned8_edit("R", &color->r, 0, UCHAR_MAX, name_str.str)) changed = true;
   ui_state.y += ui_state.height*window_resolution.height;
   ui_state.x += ui_state.width*window_resolution.width;
   
   name_str.length = name_length;
   append(&name_str, "__G");
-  if (u8_edit("G", &color->g, 0, UCHAR_MAX, name_str.str)) changed = true;
+  if (unsigned8_edit("G", &color->g, 0, UCHAR_MAX, name_str.str)) changed = true;
   ui_state.y += ui_state.height*window_resolution.height;
   ui_state.x += ui_state.width*window_resolution.width;
   
   name_str.length = name_length;
   append(&name_str, "__B");
-  if (u8_edit("B", &color->b, 0, UCHAR_MAX, name_str.str)) changed = true;
+  if (unsigned8_edit("B", &color->b, 0, UCHAR_MAX, name_str.str)) changed = true;
   ui_state.y += ui_state.height*window_resolution.height;
   ui_state.x += ui_state.width*window_resolution.width;
     
   name_str.length = name_length;
   append(&name_str, "__A");
-  if (u8_edit("A", &color->a, 0, UCHAR_MAX, name_str.str)) changed = true;
+  if (unsigned8_edit("A", &color->a, 0, UCHAR_MAX, name_str.str)) changed = true;
   ui_state.x = prev_ui_state_x;
   ui_state.width = prev_ui_state_width;
 
   return changed;
 }
 
-bool float_edit(char *name, float *value) {
+bool float_edit(char *name, float *value, float min_value = -FLT_MAX, float max_value = FLT_MAX) {
   String *str_edit_buffer = ui_str_buffer_storage.retrieve(name);
   if (!str_edit_buffer) {
     String str;
@@ -398,6 +418,13 @@ bool float_edit(char *name, float *value) {
   if (text_field(name, str_edit_buffer)) {
     char *parsed_to = NULL;
     float val = strtof(str_edit_buffer->str, &parsed_to);
+    if (min_value > max_value) {
+      float tmp = min_value;
+      min_value = max_value;
+      max_value = tmp;
+    }
+    if (val < min_value) val = min_value;
+    if (val > max_value) val = max_value;
     *value = val;
     return true;
   }

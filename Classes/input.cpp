@@ -8,9 +8,14 @@ struct Input_Button {
   bool is_down;
   bool just_pressed;
 };
+enum Mouse_Button_Code {
+  MOUSE_LEFT = 0, MOUSE_RIGHT = 1, NUM_MOUSE_BUTTONS = 2
+};
 struct Mouse {
-  Input_Button left;
-  Input_Button right;
+  union {
+    struct {Input_Button left, right;};
+    Input_Button mouse_buttons[NUM_MOUSE_BUTTONS];
+  };
   float x;
   float y;
   float scroll;

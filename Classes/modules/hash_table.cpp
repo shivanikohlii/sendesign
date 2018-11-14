@@ -57,7 +57,7 @@ template <class Key_Type, class Data_Type> struct Hash_Table {
   }
 
   bool retrieve(Key_Type key, Data_Type *out) {
-    if (slots.length == 0) return 0;
+    if (slots.length == 0) return false;
     u64 slot_index = hash_function(key) % slots.length;
     Hash_Slot<Key_Type, Data_Type> slot = slots[slot_index];
     if (slot.entries) {

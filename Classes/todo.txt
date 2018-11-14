@@ -4,6 +4,10 @@ Feel free to add to this list.
 
 - Immediate Mode GUI Library
 - Level Editor
+  -Moving entities (grabbing)
+  -Duplicating entities
+  -UI for controlling properties of the entity the user is placing
+  -Locking the position to a tile in the world
 - Saving/Loading Levels
 - C++ Programming Interface Via a DLL
 - Code Hotloading for the C++ Programming Interface
