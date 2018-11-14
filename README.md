@@ -34,13 +34,13 @@ A teacher who wants to teach their students loops. They want the game to have so
  (u8 value means an unnsigned 8 bit integer)
 * colorEdit(name,rbga values pointer) return boolean
 # Features we are working on for the UI
-[checkbox:unchecked] Dropdown menu
+- [ ] Dropdown menu
 # Features we are working on 
-[checkbox:unchecked] Control Schemes
-[checkbox:unchecked] Adding duplication functionality
-[checkbox:unchecked] Changing placemenet of asset
-[checkbox:unchecked] allowing user to select size of asset
-[checkbox:unchecked] grid locking
+- [ ] Control Schemes
+- [ ] Adding duplication functionality
+- [ ] Changing placemenet of asset
+- [ ] allowing user to select size of asset
+- [ ] grid locking
 ## Authors
 
 * **Shivani Kohli** 
