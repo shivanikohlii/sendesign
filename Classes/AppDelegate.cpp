@@ -42,7 +42,6 @@ float dt = 0.0f;
 float total_time_elapsed = 0.0f;
 
 cocos2d::Scene *main_scene = NULL;
-cocos2d::Layer *game_layer = NULL;
 cocos2d::Layer *screen_layer = NULL;
 
 Rect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
@@ -480,6 +479,9 @@ struct Main_Scene : cocos2d::Scene {
 
     dt = delta_time;
     total_time_elapsed += dt;
+    if (key[KEY_ALT].is_down && key['\n'].just_pressed) {
+		//@TODO: Toggle fullscreen!
+    }
     update_bindings();
     ui_begin_frame();
     main_loop();

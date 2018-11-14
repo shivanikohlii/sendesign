@@ -161,11 +161,9 @@ bool initialize() {
   auto visibleSize = cocos2d::Director::getInstance()->getVisibleSize();
   cocos2d::Vec2 origin = cocos2d::Director::getInstance()->getVisibleOrigin();
 
-  game_layer = cocos2d::Layer::create();
   screen_layer = cocos2d::Layer::create();
   
-  main_scene->addChild(game_layer, 0);
-  main_scene->addChild(screen_layer, 1);
+  main_scene->addChild(screen_layer, 1000);
 
   add_font("Inconsolata-Regular.ttf", 16);
   add_font("AndBasR.ttf", 24);
@@ -304,7 +302,7 @@ void main_loop() {
     ui_begin(0.8f, 1.0f);
 
     text("Editor Panel:");
-
+    
     static bool show_view = false;
     if (button(show_view ? "Hide View" : "Show View")) show_view = !show_view;
     if (show_view) {
@@ -312,6 +310,7 @@ void main_loop() {
       float_edit("View Y", &view.y);
       float_edit("View W", &view.w);
       float_edit("View H", &view.h);
+      spacing(0.3f);
     }
 
     static bool show_options = false;
@@ -330,7 +329,9 @@ void main_loop() {
       color_edit("Background Color", &background_color);
       int_edit("Background Texture", &background_texture);
     }
-  
+    spacing(0.5f);
+
+    text("Entity Panel:");
     if (selected_entity) {
       Entity *s = selected_entity;
       text("Entity Manager Index: %i", s->manager_index);

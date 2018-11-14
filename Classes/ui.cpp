@@ -460,3 +460,16 @@ bool checkbox(char *name, bool *value) {
   ui_end_element();
   return changed;
 }
+
+// Amount specifies the number of UI element heights worth of spacing you want
+void spacing(float amount, bool use_default_color = true) {
+  ui_state.y += ui_state.height * window_resolution.height*(1.0f - amount);
+  Rect r = ui_begin_element();
+  r.h *= amount;
+  bool mouse_hovering = point_in_rect(v2(mouse.x, mouse.y), r);
+  if (mouse_hovering) ui_state.prev_mouse_hovering_ui = true;
+  
+  if (use_default_color) set_draw_color_bytes(210, 130, 20, 255);
+  draw_solid_rect(r.x, r.y, r.w, r.h);
+  ui_end_element();
+}
