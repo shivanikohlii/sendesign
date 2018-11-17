@@ -258,3 +258,7 @@ void on_key_released(KeyCode key_code, cocos2d::Event *event) {
     key[c].is_down = false;
   }
 }
+
+void character_callback(GLFWwindow* window, unsigned int codepoint) {
+  if (codepoint <= UCHAR_MAX) characters_typed.add(codepoint);
+}

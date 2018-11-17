@@ -2,12 +2,6 @@ This is just a list of some things that can be added to this project.
 We don't necessarily have to do all of these things.
 Feel free to add to this list.
 
-- Immediate Mode GUI Library
-- Level Editor
-  -Moving entities (grabbing)
-  -Duplicating entities
-  -UI for controlling properties of the entity the user is placing
-  -Locking the position to a tile in the world
 - Saving/Loading Levels
 - C++ Programming Interface Via a DLL
 - Code Hotloading for the C++ Programming Interface
@@ -35,3 +29,4 @@ Feel free to add to this list.
 - Control Scheme Configurations
 - Support for Lua/Javascript Scripts Attached to Entity Types
 - Support For Custom Entity Data/Custom Entity Types
+

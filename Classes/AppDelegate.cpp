@@ -36,6 +36,8 @@ typedef unsigned char uchar;
 //
 // Game "Engine" Globals:
 //
+#define PROGRAM_NAME "CSP"
+cocos2d::Size windowed_mode_size = cocos2d::Size(1366, 768);
 cocos2d::Size window_resolution = cocos2d::Size(1366, 768);
 bool fullscreen = false;
 float dt = 0.0f;
@@ -472,16 +474,34 @@ struct Main_Scene : cocos2d::Scene {
     keyboard_listener->onKeyReleased = on_key_released;
     _eventDispatcher->addEventListenerWithFixedPriority(keyboard_listener, 1);
 
+    //NOTE: Did this in hopes this would get around the keycode to character code translation problem
+    // but of course this didn't work...
+#if 0
+    cocos2d::Director *director = cocos2d::Director::getInstance();
+    cocos2d::GLViewImpl *glview = (cocos2d::GLViewImpl *)director->getOpenGLView();
+    GLFWwindow *window = glview->getWindow();
+    glfwSetCharCallback(window, character_callback);
+#endif
+    
     return initialize();
   }
+
   void update(float delta_time) {
     void draw_immediate_mode_graphics();
 
     dt = delta_time;
     total_time_elapsed += dt;
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32) || (CC_TARGET_PLATFORM == CC_PLATFORM_MAC) || (CC_TARGET_PLATFORM == CC_PLATFORM_LINUX)
     if (key[KEY_ALT].is_down && key['\n'].just_pressed) {
-		//@TODO: Toggle fullscreen!
+      fullscreen = !fullscreen;
+      cocos2d::Director *director = cocos2d::Director::getInstance();
+      cocos2d::GLViewImpl *glview = (cocos2d::GLViewImpl *)director->getOpenGLView();
+      if (fullscreen) glview->setFullscreen();
+      else glview->setWindowed(windowed_mode_size.width, windowed_mode_size.height);
+	  window_resolution = glview->getFrameSize();
+	  glview->setDesignResolutionSize(window_resolution.width, window_resolution.height, ResolutionPolicy::NO_BORDER);
     }
+#endif
     update_bindings();
     ui_begin_frame();
     main_loop();
@@ -508,10 +528,10 @@ bool AppDelegate::applicationDidFinishLaunching() {
   auto glview = director->getOpenGLView();
   if (!glview) {
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32) || (CC_TARGET_PLATFORM == CC_PLATFORM_MAC) || (CC_TARGET_PLATFORM == CC_PLATFORM_LINUX)
-    if (fullscreen) glview = cocos2d::GLViewImpl::createWithFullScreen("CSP");
-    else glview = cocos2d::GLViewImpl::createWithRect("CSP", cocos2d::Rect(0, 0, window_resolution.width, window_resolution.height));
+    if (fullscreen) glview = cocos2d::GLViewImpl::createWithFullScreen(PROGRAM_NAME);
+    else glview = cocos2d::GLViewImpl::createWithRect(PROGRAM_NAME, cocos2d::Rect(0, 0, windowed_mode_size.width, windowed_mode_size.height));
 #else
-    glview = GLViewImpl::create("CSP");
+    glview = GLViewImpl::create(PROGRAM_NAME);
 #endif
     director->setOpenGLView(glview);
   }
@@ -520,6 +540,7 @@ bool AppDelegate::applicationDidFinishLaunching() {
   director->setDisplayStats(true);
 #endif
   director->setAnimationInterval(1.0f / 60);
+  window_resolution = glview->getFrameSize();
   glview->setDesignResolutionSize(window_resolution.width, window_resolution.height, ResolutionPolicy::NO_BORDER);
 
   register_all_packages();
