@@ -162,7 +162,7 @@ int make_texture(uchar *data, int width, int height) {
 }
 int make_texture(char *name) {
   char filename[256]; //@MEMORY
-  sprintf(filename, "bitmaps/%s", name);
+  sprintf(filename, "data/bitmaps/%s", name);
   int pixel_width = 0, pixel_height = 0, bitdepth = 0;
   uchar *data = stbi_load(filename, &pixel_width, &pixel_height, &bitdepth, STBI_rgb_alpha);
   int texture_index = make_texture(data, pixel_width, pixel_height);
@@ -185,7 +185,7 @@ struct Song {
 Dynamic_Array<Sound> sounds;
 Dynamic_Array<Song> songs;
 int load_music(char *name) {
-  std::string filename = "music/";
+  std::string filename = "data/music/";
   filename.append(name);
   cocos2d::experimental::AudioEngine::preload(filename);
 
@@ -202,7 +202,7 @@ int load_music(char *name) {
   return songs.length - 1;
 }
 int load_sound(char *name) {
-  std::string filename = "sounds/";
+  std::string filename = "data/sounds/";
   filename.append(name);
   cocos2d::experimental::AudioEngine::preload(filename);
   char *c_filename = (char *)malloc(filename.length() + 1);
@@ -423,10 +423,10 @@ void draw_immediate_mode_graphics() {
 // Fonts:
 //
 
-int add_font(char *font_filename, int font_size) {
+int load_font(char *font_filename, int font_size) {
   Font f = {};
   cocos2d::TTFConfig *ttf_config = new cocos2d::TTFConfig();
-  ttf_config->fontFilePath = "fonts/";
+  ttf_config->fontFilePath = "data/fonts/";
   ttf_config->fontFilePath += font_filename;
   ttf_config->fontSize = font_size;
   ttf_config->glyphs = cocos2d::GlyphCollection::DYNAMIC;
@@ -473,7 +473,7 @@ struct Main_Scene : cocos2d::Scene {
     keyboard_listener->onKeyPressed = on_key_pressed;
     keyboard_listener->onKeyReleased = on_key_released;
     _eventDispatcher->addEventListenerWithFixedPriority(keyboard_listener, 1);
-
+    
     //NOTE: Did this in hopes this would get around the keycode to character code translation problem
     // but of course this didn't work...
 #if 0
@@ -523,7 +523,94 @@ void AppDelegate::initGLContextAttrs() {
 
 static int register_all_packages() {return 0;}
 
+enum Config_Parameter_Type {
+  CONFIG_PARAM_FLOAT = 0, CONFIG_PARAM_INT = 1,
+  CONFIG_PARAM_BOOL = 2, CONFIG_PARAM_STRING = 3,
+  NUM_CONFIG_PARAM_TYPES = 4
+};
+struct Config_Parameter {
+  int type;
+  void *var;
+};
+Dynamic_Array<Config_Parameter> config_parameters(8);
+inline void add_config_param(float *param) {
+  Config_Parameter c = {CONFIG_PARAM_FLOAT, param};
+  config_parameters.add(c);
+}
+inline void add_config_param(int *param) {
+  Config_Parameter c = {CONFIG_PARAM_INT, param};
+  config_parameters.add(c);
+}
+inline void add_config_param(bool *param) {
+  Config_Parameter c = {CONFIG_PARAM_BOOL, param};
+  config_parameters.add(c);
+}
+inline void add_config_param(char *param) {
+  Config_Parameter c = {CONFIG_PARAM_STRING, param};
+  config_parameters.add(c);
+}
+
+
 bool AppDelegate::applicationDidFinishLaunching() {
+#ifdef _DEBUG
+#ifdef _WIN32
+  AllocConsole();
+  FILE *console;
+  freopen_s(&console, "CONOUT$", "wb", stdout);
+#endif
+#endif
+
+  add_config_param(&windowed_mode_size.width);
+  add_config_param(&windowed_mode_size.height);
+  add_config_param(&fullscreen);
+  
+  FILE *config_file = fopen("data/config.txt", "r");
+  if (!config_file) {
+    printf("ERROR: Couldn't find config file, using default settings.\n");
+  } else {
+    bool error = false;
+    for (int i = 0; i < config_parameters.length; i++) {
+      Config_Parameter c = config_parameters[i];
+      for (;;) {
+	int res = 0;
+	switch (c.type) {
+	case CONFIG_PARAM_FLOAT:
+	  res = fscanf(config_file, "%f", (float *)c.var);
+	  break;
+	case CONFIG_PARAM_INT:
+	  res = fscanf(config_file, "%i", (int *)c.var);
+	  break;
+	case CONFIG_PARAM_BOOL:
+	  {
+	    int tmp = 0;
+	    res = fscanf(config_file, "%i", &tmp);
+	    if (res > 0) *(bool *)c.var = (tmp != 0);
+	  }
+	  break;
+	case CONFIG_PARAM_STRING:
+	  res = fscanf(config_file, "%s", (char *)c.var);
+	  break;
+	default:
+	  assert(!"ERROR: Invalid config parameter type.\n");
+	  break;
+	}
+	if (res > 0) break;
+	if (res == EOF) {
+	  error = true;
+	  break;
+	}
+	res = fscanf(config_file, "%*s");
+	if (res == EOF) {
+	  error = true;
+	  break;
+	}
+      }
+      if (error) break;
+    }
+    if (error) printf("ERROR: There was an error parsing the config file. It has an invalid format.\n");
+    fclose(config_file);
+  }
+  
   auto director = cocos2d::Director::getInstance();
   auto glview = director->getOpenGLView();
   if (!glview) {
@@ -536,9 +623,10 @@ bool AppDelegate::applicationDidFinishLaunching() {
     director->setOpenGLView(glview);
   }
 
-#if 1
+#if _DEBUG
   director->setDisplayStats(true);
 #endif
+
   director->setAnimationInterval(1.0f / 60);
   window_resolution = glview->getFrameSize();
   glview->setDesignResolutionSize(window_resolution.width, window_resolution.height, ResolutionPolicy::NO_BORDER);

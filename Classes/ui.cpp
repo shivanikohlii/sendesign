@@ -287,6 +287,15 @@ bool text_field(char *name, String *str, bool multiline = false, char *hash_stri
   return changed;
 }
 
+inline bool text_field(char *name, char *str, int memory_size = -1, bool multiline = false, char *hash_string = NULL) {
+  String s = {};
+  s.str = str;
+  s.length = strlen(str);
+  if (memory_size < 0) memory_size = s.length + 1;
+  s.memory_size = memory_size;
+  return text_field(name, &s, multiline, hash_string);
+}
+
 Hash_Table<char *, String> ui_str_buffer_storage(djb2_hash, string_compare);
 
 bool int_edit(char *name, int *value, int min_val = -INT_MAX, int max_val = INT_MAX, char *hash_string = NULL) {

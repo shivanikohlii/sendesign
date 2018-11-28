@@ -144,6 +144,8 @@ void main_loop() {
 }
 #endif
 
+#include "level.cpp"
+
 //
 // Game Startup Code:
 //
@@ -165,8 +167,8 @@ bool initialize() {
   
   main_scene->addChild(screen_layer, 1000);
 
-  add_font("Inconsolata-Regular.ttf", 16);
-  add_font("AndBasR.ttf", 24);
+  load_font("Inconsolata-Regular.ttf", 16);
+  load_font("AndBasR.ttf", 24);
 
   { // Make Blank White Texture:
     const int W = 4;
@@ -175,14 +177,20 @@ bool initialize() {
     for (int i = 0; i < sizeof(data); i++) data[i] = 255;
     make_texture(data, W, H);
   }
-  
-  //@TODO: Support other image formats? (jpg, gif, bmp, etc.)
+
+  char *supported_formats[] = {"png", "jpeg", "jpg", "bmp", "tga", "gif", "psd"};
   Dynamic_Array<char *> bitmap_filenames;
-  get_filenames_in_directory("bitmaps", &bitmap_filenames);
+  get_filenames_in_directory("data/bitmaps", &bitmap_filenames);
   for (int i = 0; i < bitmap_filenames.length; i++) {
-    if (strcmp(file_extension(bitmap_filenames[i]), "png") == 0) {
-      make_texture(bitmap_filenames[i]);
+    char *ext = file_extension(bitmap_filenames[i]);
+    bool supported_ext = false;
+    for (int j = 0; j < array_size(supported_formats); j++) {
+      if (strcmp(ext, supported_formats[j]) == 0) {
+	make_texture(bitmap_filenames[i]);
+	break;
+      }
     }
+
     free(bitmap_filenames[i]);
   }
 
@@ -191,7 +199,7 @@ bool initialize() {
 
   // Load All Sounds in the sounds directory:
   Dynamic_Array<char *> sound_filenames;
-  get_filenames_in_directory("sounds", &sound_filenames);
+  get_filenames_in_directory("data/sounds", &sound_filenames);
   for (int i = 0; i < sound_filenames.length; i++) {
     if (strcmp(file_extension(sound_filenames[i]), "mp3") == 0) load_sound(sound_filenames[i]);
     free(sound_filenames[i]);
@@ -269,7 +277,7 @@ void main_loop() {
       placement_position.y = lock_dim_to_grid(world_mouse.y, grid_size);
     }
   
-    if (!ui_state.has_keyboard_input) { // Camera Control:
+    if (!ui_state.has_keyboard_input && !key[KEY_CTRL].is_down) { // Camera Control:
       int dx = 0, dy = 0;
       if (key['w'].is_down) dy++;
       if (key['s'].is_down) dy--;
@@ -295,12 +303,13 @@ void main_loop() {
 	view.h = view.w / aspect;
 	view.pos -= (view.dims - prev_dims)/2.0f; 
       } else {
-	view.w -= mouse.scroll*50.0f;
+	view.w -= mouse.scroll*m;
       }
     }
-
+    
     ui_begin(0.8f, 1.0f);
 
+    text("Some text");
     text("Editor Panel:");
     
     static bool show_view = false;
@@ -329,6 +338,16 @@ void main_loop() {
       color_edit("Background Color", &background_color);
       int_edit("Background Texture", &background_texture);
     }
+    static bool show_level_options = false;
+    if (button(show_level_options ? "Hide Level Options" : "Show Level Options")) show_level_options = !show_level_options;
+    if (show_level_options) {
+      static char level_name_buffer[256];
+      static String level_name = fixed_str(level_name_buffer);
+      text_field("Level Name", &level_name);
+      if (button("Save Level")) save_level(level_name.str);
+      if (button("Load Level")) load_level(level_name.str);
+    }
+    
     spacing(0.5f);
 
     text("Entity Panel:");
@@ -353,16 +372,22 @@ void main_loop() {
 
     ui_end();
 
-    if (key[KEY_CTRL].is_down && key['g'].just_pressed) lock_to_grid = !lock_to_grid;
-	if (key[KEY_CTRL].is_down && key['h'].just_pressed) draw_grid = !draw_grid;
+    if (key[KEY_CTRL].is_down) {
+      if (!ui_state.has_keyboard_input) {
+	if (key['v'].just_pressed) {
+	  Entity *e = create_entity(&clipboard_entity);
+	  e->x = placement_position.x;
+	  e->y = placement_position.y;
+	}
+	if (key['c'].just_pressed && selected_entity) {
+	  clipboard_entity = *selected_entity;
+	}
+      }
+      if (key['g'].just_pressed) lock_to_grid = !lock_to_grid;
+      if (key['h'].just_pressed) draw_grid = !draw_grid;
 
-    if (!ui_state.has_keyboard_input && key[KEY_CTRL].is_down && key['v'].just_pressed) {
-      Entity *e = create_entity(&clipboard_entity);
-      e->x = placement_position.x;
-      e->y = placement_position.y;
-    }
-    if (!ui_state.has_keyboard_input && key[KEY_CTRL].is_down && key['c'].just_pressed && selected_entity) {
-      clipboard_entity = *selected_entity;
+      if (key['s'].just_pressed) save_level(current_level_name);
+      if (key['r'].just_pressed) load_level(current_level_name);
     }
 
     if (!ui_state.mouse_hovering_ui && mouse.right.just_pressed) { // Remove Entity:
