@@ -108,7 +108,14 @@
     <CustomBuildStep>
       <Command>if not exist "$(OutDir)" mkdir "$(OutDir)"
 xcopy "$(ProjectDir)..\Resources" "$(OutDir)" /D /E /I /F /Y
-      </Command>
+      
+if not exist "$(OutDir)\CSP" mkdir "$(OutDir)CSP"
+xcopy "$(ProjectDir)..\Classes\modules" "$(OutDir)CSP" /E /Y /Q /I
+copy "$(ProjectDir)..\Classes\shared.cpp" "$(OutDir)CSP\shared.cpp"
+xcopy "$(ProjectDir)..\Classes\user" "$(OutDir)CSP" /E /Y /Q /I
+move "$(OutDir)CSP\game.cpp" "$(OutDir)game.cpp"
+move "$(OutDir)CSP\build.bat" "$(OutDir)build.bat"
+move "$(OutDir)CSP\entity.cpp" "$(OutDir)entity.cpp"</Command>
       <Outputs>$(TargetName).cab</Outputs>
       <Inputs>$(TargetFileName)</Inputs>
     </CustomBuildStep>

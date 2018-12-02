@@ -1,20 +1,5 @@
 #include "AppDelegate.h"
 
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef float f32;
-typedef double f64;
-
-typedef unsigned char uchar;
-
 #define STB_IMAGE_IMPLEMENTATION
 #include "libraries/stb_image.h"
 
@@ -22,11 +7,29 @@ typedef unsigned char uchar;
 #define min_val(a, b) (((a) < (b)) ? (a) : (b))
 #define array_size(a) ((sizeof(a))/(sizeof((a)[0])))
 
+#include "modules/basic.cpp"
 #include "modules/dynamic_array.cpp"
 #include "modules/math.cpp"
+
+bool is_power_of_2(int n) {
+  while ((n % 2) == 0) n /= 2;
+  if (n > 1) return false;
+  return true;
+}
+
 #include "modules/random.cpp"
-#include "modules/hash_table.cpp"
+#include "modules/string_hash_table.cpp"
 #include "modules/string.cpp"
+
+// NOTE: This is supposed to be a fast std::string to cstring comparison which
+// guarantees there will be no cstring to std::string conversions or
+// vice versa as well as any other std C++ nonsense.
+inline bool match(const std::string &str1, const char *str2) {
+  int str1_length = str1.length();
+  return strncmp(str1.data(), str2, str1_length) == 0 && str2[str1_length] == 0;
+}
+
+#include "shared.cpp"
 
 // Note: This will put the cocos2d library into the global namespace:      USING_NS_CC;
 
@@ -36,38 +39,13 @@ typedef unsigned char uchar;
 //
 // Game "Engine" Globals:
 //
-#define PROGRAM_NAME "CSP"
-cocos2d::Size windowed_mode_size = cocos2d::Size(1366, 768);
-cocos2d::Size window_resolution = cocos2d::Size(1366, 768);
-bool fullscreen = false;
-float dt = 0.0f;
+
 float total_time_elapsed = 0.0f;
+
+#define PROGRAM_NAME "CSP"
 
 cocos2d::Scene *main_scene = NULL;
 cocos2d::Layer *screen_layer = NULL;
-
-Rect view = {0.0f, 0.0f, 300.0f, 300.0f/1.778645833f};
-
-inline V2 screen_to_world(V2 v, Rect view1 = view) {
-  return v2(view1.x + v.x/window_resolution.width*view1.w,
-	    view1.y + v.y/window_resolution.height*view1.h);
-}
-inline Rect screen_to_world(Rect r1, Rect view1 = view) {
-  return make_rect(view1.x + r1.x/window_resolution.width*view1.w,
-		   view1.y + r1.y/window_resolution.height*view1.h,
-		   r1.w/window_resolution.width*view1.w,
-		   r1.h/window_resolution.height*view1.h);
-}
-inline V2 world_to_screen(V2 v, Rect view1 = view) {
-  return v2((window_resolution.width*(v.x - view1.x))/view1.w,
-	    (window_resolution.height*(v.y - view1.y))/view1.h);
-}
-inline Rect world_to_screen(Rect r1, Rect view1 = view) {
-  return make_rect((window_resolution.width*(r1.x - view1.x))/view1.w,
-		   (window_resolution.height*(r1.y - view1.y))/view1.h,
-		   (r1.w*window_resolution.width)/view1.w,
-		   (r1.h*window_resolution.height)/view1.h);
-}
 
 //
 // String Stuff:
@@ -150,24 +128,33 @@ void get_filenames_in_directory(char *directory, Dynamic_Array<char *> *result) 
 // Texture System:
 //
 
-Dynamic_Array<cocos2d::Texture2D *> textures;
-
-int make_texture(uchar *data, int width, int height) {
+int load_texture_from_data(uchar *data, int width, int height) {
   cocos2d::Texture2D *texture = new cocos2d::Texture2D();
   texture->initWithData(data, 4*width*height, cocos2d::Texture2D::PixelFormat::RGBA8888, width, height, cocos2d::Size(width, height));
   if (is_power_of_2(width) && is_power_of_2(height)) texture->generateMipmap(); // NOTE: This call will cause a crash if it's called with an image that isn't a power of 2 in both dimensions...
                                                                         // TODO: (We may want to print an error message in that case)
-  textures.add(texture);
-  return textures.length - 1;
+  Texture t;
+  t.cocos_texture = texture;
+  t.width = width;
+  t.height = height;
+  csp->textures.add(t);
+  return csp->textures.length - 1;
 }
-int make_texture(char *name) {
+int load_texture_from_file(char *name) {
   char filename[256]; //@MEMORY
   sprintf(filename, "data/bitmaps/%s", name);
   int pixel_width = 0, pixel_height = 0, bitdepth = 0;
   uchar *data = stbi_load(filename, &pixel_width, &pixel_height, &bitdepth, STBI_rgb_alpha);
-  int texture_index = make_texture(data, pixel_width, pixel_height);
+  if (!data) return -1;
+  int texture_index = load_texture_from_data(data, pixel_width, pixel_height);
   STBI_FREE(data);
   return texture_index;
+}
+inline int load_texture(uchar *data, int width, int height) {
+  return load_texture_from_data(data, width, height);
+}
+inline int load_texture(char *name) {
+  return load_texture_from_file(name);
 }
 
 //
@@ -218,15 +205,21 @@ int load_sound(char *name) {
   sounds.add(sound);
   return sounds.length - 1;
 }
-void play_music(int music_index, bool loop = true) {
+inline void __play_music(int music_index, bool loop) {
   assert(music_index >= 0);
   assert(music_index < songs.length);
   cocos2d::experimental::AudioEngine::play2d(songs[music_index].filename, loop);
 }
-void play_sound(int sound_index, bool loop = false) {
+inline void __play_sound(int sound_index, bool loop) {
   assert(sound_index >= 0);
   assert(sound_index < sounds.length);
   cocos2d::experimental::AudioEngine::play2d(sounds[sound_index].filename, loop);
+}
+inline void play_music(int music_index, bool loop = true) {
+  __play_music(music_index, loop);
+}
+inline void play_sound(int sound_index, bool loop = false) {
+  __play_sound(sound_index, loop);
 }
 
 //
@@ -254,63 +247,35 @@ Graphics_Items screen_sprite_graphics_items;
 Graphics_Items game_label_graphics_items;
 Graphics_Items screen_label_graphics_items;
 
-struct Draw_Settings {
-  cocos2d::Color3B draw_color = cocos2d::Color3B(255, 255, 255);
-  u8 draw_color_opacity = 255;
-  bool screen_draw = false;
-} draw_settings;
-
-inline void set_draw_color(float red, float green, float blue, float alpha) {
-  draw_settings.draw_color.r = (u8)(red*255.0f);
-  draw_settings.draw_color.g = (u8)(green*255.0f);
-  draw_settings.draw_color.b = (u8)(blue*255.0f);
-  draw_settings.draw_color_opacity = (u8)(alpha*255.0f);
-}
-inline void set_draw_color(Color4B color) {
-  draw_settings.draw_color.r = color.r;
-  draw_settings.draw_color.g = color.g;
-  draw_settings.draw_color.b = color.b;
-  draw_settings.draw_color_opacity = color.a;
-}
-inline void set_draw_color(Color4 color) {
-  set_draw_color(color4b(color));
-}
-inline void set_draw_color_bytes(u8 red, u8 green, u8 blue, u8 alpha) {
-  draw_settings.draw_color.r = red;
-  draw_settings.draw_color.g = green;
-  draw_settings.draw_color.b = blue;
-  draw_settings.draw_color_opacity = alpha;
-}
-inline void enable_screen_draw() {draw_settings.screen_draw = true;}
-inline void disable_screen_draw() {draw_settings.screen_draw = false;}
-
-void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0, float rotation = 0.0f) {
+void __draw_rect(int texture, float x, float y, float w, float h, int z_order, float rotation) {
   assert(texture >= 0);
-  assert(texture < textures.length);
+  assert(texture < csp->textures.length);
   Graphics_Items *items = NULL;
-  if (draw_settings.screen_draw) items = &screen_sprite_graphics_items;
+  if (csp->draw_settings.screen_draw) items = &screen_sprite_graphics_items;
   else items = &game_sprite_graphics_items;
   
   if (items->next_item >= items->items.length) {
     Graphics_Item item = {};
-    item.sprite = cocos2d::Sprite::createWithTexture(textures[texture]);
+    item.sprite = cocos2d::Sprite::createWithTexture((cocos2d::Texture2D *)csp->textures[texture].cocos_texture);
     item.sprite->setIgnoreAnchorPointForPosition(true);
     
-    if (draw_settings.screen_draw) screen_layer->addChild(item.sprite, 0);
+    if (csp->draw_settings.screen_draw) screen_layer->addChild(item.sprite, 0);
     else main_scene->addChild(item.sprite, 0);
     items->items.add(item);
   }
   Graphics_Item *item = items->items.data + items->next_item;
-  float tw = textures[texture]->getPixelsWide();
-  float th = textures[texture]->getPixelsHigh();
-  item->sprite->setTexture(textures[texture]);
+  float tw = csp->textures[texture].width;
+  float th = csp->textures[texture].height;
+  item->sprite->setTexture((cocos2d::Texture2D *)csp->textures[texture].cocos_texture);
   cocos2d::Rect texture_rect = {0.0f, 0.0f, tw, th};
   item->sprite->setTextureRect(texture_rect);
   item->sprite->setRotation(rotation);
 
   item->sprite->setLocalZOrder(z_order);
-  item->sprite->setColor(draw_settings.draw_color);
-  item->sprite->setOpacity(draw_settings.draw_color_opacity);
+  item->sprite->setColor(cocos2d::Color3B(csp->draw_settings.draw_color.r,
+					  csp->draw_settings.draw_color.g,
+					  csp->draw_settings.draw_color.b));
+  item->sprite->setOpacity(csp->draw_settings.draw_color_opacity);
   
   item->sprite->setScaleX(w/tw);
   item->sprite->setScaleY(h/th);
@@ -318,20 +283,18 @@ void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0,
   item->sprite->setVisible(true);
   items->next_item++;
 }
+inline void draw_rect(int texture, float x, float y, float w, float h, int z_order = 0, float rotation = 0.0f) {
+  __draw_rect(texture, x, y, w, h, z_order, rotation);
+}
 inline void draw_solid_rect(float x, float y, float w, float h, int z_order = 0, float rotation = 0.0f) {
   draw_rect(0, x, y, w, h, z_order, rotation);
 }
 
-struct Text_Information {
-  int num_lines;
-  float line_height;
-};
-
-Rect get_text_rect(char *text, float x, float y, int font_index, Text_Information *info = NULL) {
+Rect __get_text_rect(char *text, float x, float y, int font_index, Text_Information *info) {
   assert(font_index >= 0);
   assert(font_index < fonts.length);
   Graphics_Items *items = NULL;
-  if (draw_settings.screen_draw) items = &screen_label_graphics_items;
+  if (csp->draw_settings.screen_draw) items = &screen_label_graphics_items;
   else items = &game_label_graphics_items;
 
   if (items->next_item >= items->items.length) {
@@ -340,7 +303,7 @@ Rect get_text_rect(char *text, float x, float y, int font_index, Text_Informatio
     item.label->setIgnoreAnchorPointForPosition(true);
 	item.label->setUserData((void *)font_index); // Save the font id that this label is using
 
-    if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
+    if (csp->draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
     else main_scene->addChild(item.label, 0);
     items->items.add(item);
     item.label->setVisible(false);
@@ -363,12 +326,15 @@ Rect get_text_rect(char *text, float x, float y, int font_index, Text_Informatio
   cocos2d::Size size = item->label->getContentSize();
   return {x, y, size.width, size.height};
 }
+inline Rect get_text_rect(char *text, float x, float y, int font_index, Text_Information *info = NULL) {
+  return __get_text_rect(text, x, y, font_index, info);
+}
 
-Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
+Rect __draw_text(char *text, float x, float y, int font_index, int z_order) {
   assert(font_index >= 0);
   assert(font_index < fonts.length);
   Graphics_Items *items = NULL;
-  if (draw_settings.screen_draw) items = &screen_label_graphics_items;
+  if (csp->draw_settings.screen_draw) items = &screen_label_graphics_items;
   else items = &game_label_graphics_items;
 
   if (items->next_item >= items->items.length) {
@@ -377,7 +343,7 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
     item.label->setIgnoreAnchorPointForPosition(true);
 	item.label->setUserData((void *)font_index); // Save the font id that this label is using
 
-    if (draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
+    if (csp->draw_settings.screen_draw) screen_layer->addChild(item.label, 0);
     else main_scene->addChild(item.label, 0);
     items->items.add(item);
   }
@@ -392,14 +358,19 @@ Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
 
   item->label->setLocalZOrder(z_order);
 
-  item->label->setColor(draw_settings.draw_color);
-  item->label->setOpacity(draw_settings.draw_color_opacity);
+  item->label->setColor(cocos2d::Color3B(csp->draw_settings.draw_color.r,
+					 csp->draw_settings.draw_color.g,
+					 csp->draw_settings.draw_color.b));
+  item->label->setOpacity(csp->draw_settings.draw_color_opacity);
   y -= (item->label->getStringNumLines() - 1)*item->label->getLineHeight(); //@HACK: Figure out a better way to ensure that multi-line text moves down from y as the number of lines increases
   item->label->setPosition(cocos2d::Vec2(x, y));
   item->label->setVisible(true);
   items->next_item++;
   cocos2d::Size size = item->label->getContentSize();
   return {x, y, size.width, size.height};
+}
+inline Rect draw_text(char *text, float x, float y, int font_index, int z_order = 0) {
+	return __draw_text(text, x, y, font_index, z_order);
 }
 
 void draw_immediate_mode_graphics() {
@@ -438,7 +409,7 @@ int load_font(char *font_filename, int font_size) {
   fonts.add(f);
   int font_index = fonts.length - 1;
 
-  bool screen_draw = draw_settings.screen_draw;
+  bool screen_draw = csp->draw_settings.screen_draw;
   if (!screen_draw) enable_screen_draw();
   fonts[font_index].l_width = get_text_rect("L", 0.0f, 0.0f, font_index).w;
   cocos2d::Label *label = screen_label_graphics_items.items[screen_label_graphics_items.next_item].label;
@@ -448,8 +419,96 @@ int load_font(char *font_filename, int font_size) {
   return font_index;
 }
 
+void (*user_main_loop)(void) = NULL;
+void (*user_initialize)(void) = NULL;
+
 #include "ui.cpp"
 #include "CSP.cpp"
+
+#ifdef _WIN32
+inline u64 get_file_last_modified_time(char *file) {
+  FILETIME filetime;
+  HANDLE file_handle = CreateFileA(file, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  if (file_handle == INVALID_HANDLE_VALUE) return 0;
+  bool result = GetFileTime(file_handle, 0, 0, &filetime);
+  u64 time = (u64)filetime.dwLowDateTime | (((u64)filetime.dwHighDateTime) << 32);
+  CloseHandle(file_handle);
+  return time;
+}
+#else
+inline u64 get_file_last_modified_date(char *file) {
+  stat st;
+  if (stat(file, &st)) {
+    printf("Failed to get info for file '%s'.\n", file);
+    return 0;
+  } else {
+    time_t time = st.st_mtime;
+    tm zero_time_tm = {};
+    zero_time_tm.tm_mday = 1;
+    time_t zero_time = mktime(&zero_time_tm);
+    double time_elapsed = difftime(time, zero_time);
+    time_elapsed *= 1000.0f; //@REVISE: Possibly make this larger.
+    //assert(time_elapsed < (double)U64_MAX);
+    return (u64)(time_elapsed + 0.5f);
+  }
+}
+#endif
+
+void hotload_code() {
+#ifdef _WIN32
+  static HMODULE game_code_library = NULL;
+  static u64 time_since_code_load = 0;
+  u64 time = get_file_last_modified_time("game.dll");
+  if (time_since_code_load != time) {
+    time_since_code_load = time;
+    if (game_code_library) FreeLibrary(game_code_library);
+    CopyFileA("game.dll", "game_temp.dll", FALSE);
+    game_code_library = LoadLibraryA("game_temp.dll");
+    if (game_code_library) {
+      user_main_loop = (void (*)(void))GetProcAddress(game_code_library, "__main_loop");
+      if (!user_main_loop) printf("ERROR: Couldn't find '__main_loop()' in game.dll\n");
+      int (*load_csp_lib_functions)(CSP_Library_Load) = (int(*)(CSP_Library_Load))GetProcAddress(game_code_library, "__load_csp_lib_functions");
+      if (load_csp_lib_functions) {
+		  CSP_Library_Load lib_load = {};
+	lib_load.csp = csp;
+	lib_load.draw_rect = __draw_rect;
+	lib_load.get_text_rect = __get_text_rect;
+	lib_load.draw_text = __draw_text;
+	lib_load.load_texture_from_data = load_texture_from_data;
+	lib_load.load_texture_from_file = load_texture_from_file;
+	lib_load.load_font = load_font;
+	lib_load.load_music = load_music;
+	lib_load.load_sound = load_sound;
+	lib_load.play_music = __play_music;
+	lib_load.play_sound = __play_sound;
+	lib_load.add_action_binding = add_button_binding;
+	lib_load.action_button = action_button;
+	lib_load.ui_begin = ui_begin;
+	lib_load.button = button;
+	lib_load.text = text;
+	lib_load.text_field = __text_field;
+	lib_load.int_edit = __int_edit;
+	lib_load.unsigned_char_edit = __unsigned_char_edit;
+	lib_load.color_edit = color_edit;
+	lib_load.float_edit = __float_edit;
+	lib_load.checkbox = checkbox;
+	lib_load.spacing = __spacing;
+	
+	int res = load_csp_lib_functions(lib_load);
+	if (res != 0) printf("ERROR: Error loading csp library functions!\n");
+      }
+      else {
+	printf("ERROR: Couldn't find '__load_csp_lib_functions' in game.dll\n");
+      }
+      user_initialize = (void(*)(void))GetProcAddress(game_code_library, "__initialize");
+      if (!user_initialize) printf("ERROR: Couldn't find '__initialize' in game.dll\n");
+    }
+    else {
+      printf("ERROR: Couldn't load 'game.dll' (ERROR Code: %x)\n", GetLastError());
+    }
+  }
+#endif
+}
 
 //
 // Main Scene, Necessary to Interface With Cocos:
@@ -482,29 +541,38 @@ struct Main_Scene : cocos2d::Scene {
     GLFWwindow *window = glview->getWindow();
     glfwSetCharCallback(window, character_callback);
 #endif
-    
-    return initialize();
+
+    bool res = initialize();
+    hotload_code();
+    if (user_initialize) user_initialize();
+
+    return res;
   }
 
   void update(float delta_time) {
     void draw_immediate_mode_graphics();
 
-    dt = delta_time;
-    total_time_elapsed += dt;
+    csp->dt = delta_time;
+    total_time_elapsed += csp->dt;
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32) || (CC_TARGET_PLATFORM == CC_PLATFORM_MAC) || (CC_TARGET_PLATFORM == CC_PLATFORM_LINUX)
-    if (key[KEY_ALT].is_down && key['\n'].just_pressed) {
-      fullscreen = !fullscreen;
+    if (csp->key[KEY_ALT].is_down && csp->key['\n'].just_pressed) {
+      csp->fullscreen = !csp->fullscreen;
       cocos2d::Director *director = cocos2d::Director::getInstance();
       cocos2d::GLViewImpl *glview = (cocos2d::GLViewImpl *)director->getOpenGLView();
-      if (fullscreen) glview->setFullscreen();
-      else glview->setWindowed(windowed_mode_size.width, windowed_mode_size.height);
-	  window_resolution = glview->getFrameSize();
-	  glview->setDesignResolutionSize(window_resolution.width, window_resolution.height, ResolutionPolicy::NO_BORDER);
+      if (csp->fullscreen) glview->setFullscreen();
+      else glview->setWindowed(csp->windowed_mode_width, csp->windowed_mode_height);
+      cocos2d::Size window_resolution = glview->getFrameSize();
+      csp->window_width = window_resolution.width;
+      csp->window_height = window_resolution.height;
+      glview->setDesignResolutionSize(csp->window_width, csp->window_height, ResolutionPolicy::NO_BORDER);
     }
 #endif
+
+    if (csp->hotloading_enabled) hotload_code();
     update_bindings();
     ui_begin_frame();
     main_loop();
+    if (user_main_loop) user_main_loop();
     ui_end_frame();
     reset_inputs();
     draw_immediate_mode_graphics();
@@ -551,6 +619,13 @@ inline void add_config_param(char *param) {
 }
 
 
+struct Test_Struct {
+	int a;
+};
+void change_int(Test_Struct &a) {
+	a.a = 5;
+}
+
 bool AppDelegate::applicationDidFinishLaunching() {
 #ifdef _DEBUG
 #ifdef _WIN32
@@ -560,9 +635,11 @@ bool AppDelegate::applicationDidFinishLaunching() {
 #endif
 #endif
 
-  add_config_param(&windowed_mode_size.width);
-  add_config_param(&windowed_mode_size.height);
-  add_config_param(&fullscreen);
+  csp = new CSP;
+
+  add_config_param(&csp->windowed_mode_width);
+  add_config_param(&csp->windowed_mode_height);
+  add_config_param(&csp->fullscreen);
   
   FILE *config_file = fopen("data/config.txt", "r");
   if (!config_file) {
@@ -615,8 +692,8 @@ bool AppDelegate::applicationDidFinishLaunching() {
   auto glview = director->getOpenGLView();
   if (!glview) {
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32) || (CC_TARGET_PLATFORM == CC_PLATFORM_MAC) || (CC_TARGET_PLATFORM == CC_PLATFORM_LINUX)
-    if (fullscreen) glview = cocos2d::GLViewImpl::createWithFullScreen(PROGRAM_NAME);
-    else glview = cocos2d::GLViewImpl::createWithRect(PROGRAM_NAME, cocos2d::Rect(0, 0, windowed_mode_size.width, windowed_mode_size.height));
+    if (csp->fullscreen) glview = cocos2d::GLViewImpl::createWithFullScreen(PROGRAM_NAME);
+    else glview = cocos2d::GLViewImpl::createWithRect(PROGRAM_NAME, cocos2d::Rect(0, 0, csp->windowed_mode_width, csp->windowed_mode_height));
 #else
     glview = GLViewImpl::create(PROGRAM_NAME);
 #endif
@@ -628,8 +705,10 @@ bool AppDelegate::applicationDidFinishLaunching() {
 #endif
 
   director->setAnimationInterval(1.0f / 60);
-  window_resolution = glview->getFrameSize();
-  glview->setDesignResolutionSize(window_resolution.width, window_resolution.height, ResolutionPolicy::NO_BORDER);
+  cocos2d::Size window_resolution = glview->getFrameSize();
+  csp->window_width = window_resolution.width;
+  csp->window_height = window_resolution.height;
+  glview->setDesignResolutionSize(csp->window_width, csp->window_height, ResolutionPolicy::NO_BORDER);
 
   register_all_packages();
 
@@ -651,6 +730,6 @@ void AppDelegate::applicationWillEnterForeground() {
 }
 
 void AppDelegate::applicationScreenSizeChanged(int new_width, int new_height) {
-  window_resolution.width = new_width;
-  window_resolution.height = new_height;
+  csp->window_width = new_width;
+  csp->window_height = new_height;
 }

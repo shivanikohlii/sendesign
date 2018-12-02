@@ -1,3 +1,5 @@
+#ifndef CSP_MATH_CPP
+
 // A fairly flexible math library for 2d, 3d, and 4d vectors
 // as well as 3d and 4d vectors with unsigned
 // 8 bit integer components (for colors)
@@ -12,8 +14,8 @@
 // struct V2 {float x, y;};
 // struct V3 {float x, y, z;};
 // struct V4 {float x, y, z, w;};
-// struct Color3B {u8 r, g, b;};
-// struct Color4B {u8 r, g, b, a;};
+// struct Color3B {unsigned char r, g, b;};
+// struct Color4B {unsigned char r, g, b, a;};
 
 #define PI 3.14159265358979323846264338327950288f
 
@@ -80,8 +82,8 @@ const Color4 Color4::WHITE = {1.0f, 1.0f, 1.0f, 1.0f};
 const Color4 Color4::BLACK = {0.0f, 0.0f, 0.0f, 1.0f};
 
 union Color3B {
-  struct {u8 r, g, b;};
-  u8 c[3];
+  struct {unsigned char r, g, b;};
+  unsigned char c[3];
   static const Color3B WHITE;
   static const Color3B BLACK;
 };
@@ -91,11 +93,11 @@ union Color4B {
   struct {
     union {
       Color3B rgb;
-      struct {u8 r, g, b;};
+      struct {unsigned char r, g, b;};
     };
-    u8 a;
+    unsigned char a;
   };
-  u8 c[4];
+  unsigned char c[4];
   static const Color4B WHITE;
   static const Color4B BLACK;
 };
@@ -170,7 +172,7 @@ inline V4 v4(float i) {return {i, i, i, i};}
 inline Color4 color4(float r, float g, float b, float a) {return {r, g, b, a};}
 inline Color4 color4(Color3 v, float a) {return {v.x, v.y, v.z, a};}
 inline Color4 color4(float i) {return {i, i, i, i};}
-inline Color4 color4(Color3B b, u8 a) {return {(float)b.r/255.0f, (float)b.g/255.0f, (float)b.b/255.0f, (float)a/255.0f};}
+inline Color4 color4(Color3B b, unsigned char a) {return {(float)b.r/255.0f, (float)b.g/255.0f, (float)b.b/255.0f, (float)a/255.0f};}
 inline Color4 color4(Color4B b) {return {(float)b.r/255.0f, (float)b.g/255.0f, (float)b.b/255.0f, (float)b.a/255.0f};}
 inline V4 operator+(V4 a, V4 b) {return v4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);}
 inline V4 operator-(V4 a, V4 b) {return v4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);}
@@ -190,37 +192,37 @@ inline V4 normalize(V4 v) {
   return v / m;
 }
 
-inline Color3B color3b(u8 x, u8 y, u8 z) {return {x, y, z};}
-inline Color3B color3b(u8 i) { return { i, i, i }; };
-inline Color3B color3b(Color3 c) {return {(u8)(c.r*255.0f), (u8)(c.g*255.0f), (u8)(c.b*255.0f)};}
+inline Color3B color3b(unsigned char x, unsigned char y, unsigned char z) {return {x, y, z};}
+inline Color3B color3b(unsigned char i) { return { i, i, i }; };
+inline Color3B color3b(Color3 c) {return {(unsigned char)(c.r*255.0f), (unsigned char)(c.g*255.0f), (unsigned char)(c.b*255.0f)};}
 inline Color3B operator+(Color3B a, Color3B b) {return color3b(a.r + b.r, a.g + b.g, a.b + b.b);}
 inline Color3B operator-(Color3B a, Color3B b) {return color3b(a.r - b.r, a.g - b.g, a.b - b.b);}
-inline Color3B operator*(Color3B a, u8 b) {return color3b(a.r*b, a.g*b, a.b*b);}
-inline Color3B operator*(u8 a, Color3B b) {return color3b(b.r*a, b.g*a, b.b*a);}
+inline Color3B operator*(Color3B a, unsigned char b) {return color3b(a.r*b, a.g*b, a.b*b);}
+inline Color3B operator*(unsigned char a, Color3B b) {return color3b(b.r*a, b.g*a, b.b*a);}
 inline Color3B operator*(Color3B a, Color3B b) {return color3b(a.r*b.r, a.g*b.g, a.b*b.g);}
-inline Color3B operator/(Color3B a, u8 b) {return color3b(a.r/b, a.g/b, a.b/b);}
+inline Color3B operator/(Color3B a, unsigned char b) {return color3b(a.r/b, a.g/b, a.b/b);}
 inline Color3B operator-(Color3B a) {return color3b(-a.r, -a.g, -a.b);}
-inline Color3B &operator*=(Color3B &a, u8 b) {return (a = a*b);}
-inline Color3B &operator/=(Color3B &a, u8 b) {return (a = a/b);}
+inline Color3B &operator*=(Color3B &a, unsigned char b) {return (a = a*b);}
+inline Color3B &operator/=(Color3B &a, unsigned char b) {return (a = a/b);}
 inline Color3B &operator+=(Color3B &a, Color3B b) {return (a = a + b);}
 inline Color3B &operator-=(Color3B &a, Color3B b) {return (a = a - b);}
 inline bool operator==(Color3B a, Color3B b) {return a.r == b.r && a.g == b.g && a.b == b.g;}
 inline bool operator!=(Color3B a, Color3B b) {return !(a == b);}
 
-inline Color4B color4b(u8 x, u8 y, u8 z, u8 w) {return {x, y, z, w};}
-inline Color4B color4b(Color3B v, u8 w) {return {v.r, v.g, v.b, w};}
-inline Color4B color4b(u8 i) {return {i, i, i, i};}
-inline Color4B color4b(Color3 c, float a) {return {(u8)(c.r*255.0f), (u8)(c.g*255.0f), (u8)(c.b*255.0f), (u8)(a*255.0f)};}
-inline Color4B color4b(Color4 c) {return {(u8)(c.r*255.0f), (u8)(c.g*255.0f), (u8)(c.b*255.0f), (u8)(c.a*255.0f)};}
+inline Color4B color4b(unsigned char x, unsigned char y, unsigned char z, unsigned char w) {return {x, y, z, w};}
+inline Color4B color4b(Color3B v, unsigned char w) {return {v.r, v.g, v.b, w};}
+inline Color4B color4b(unsigned char i) {return {i, i, i, i};}
+inline Color4B color4b(Color3 c, float a) {return {(unsigned char)(c.r*255.0f), (unsigned char)(c.g*255.0f), (unsigned char)(c.b*255.0f), (unsigned char)(a*255.0f)};}
+inline Color4B color4b(Color4 c) {return {(unsigned char)(c.r*255.0f), (unsigned char)(c.g*255.0f), (unsigned char)(c.b*255.0f), (unsigned char)(c.a*255.0f)};}
 inline Color4B operator+(Color4B a, Color4B b) {return color4b(a.r + b.r, a.g + b.g, a.b + b.b, a.a + b.a);}
 inline Color4B operator-(Color4B a, Color4B b) {return color4b(a.r - b.r, a.g - b.g, a.b - b.b, a.a - b.a);}
-inline Color4B operator*(Color4B a, u8 b) {return color4b(a.r*b, a.g*b, a.b*b, a.a*b);}
-inline Color4B operator*(u8 a, Color4B b) {return color4b(b.r*a, b.g*a, b.b*a, b.a*a);}
+inline Color4B operator*(Color4B a, unsigned char b) {return color4b(a.r*b, a.g*b, a.b*b, a.a*b);}
+inline Color4B operator*(unsigned char a, Color4B b) {return color4b(b.r*a, b.g*a, b.b*a, b.a*a);}
 inline Color4B operator*(Color4B a, Color4B b) {return color4b(a.r*b.r, a.g*b.g, a.b*b.b, a.a*b.a);}
-inline Color4B operator/(Color4B a, u8 b) {return color4b(a.r/b, a.g/b, a.b/b, a.a/b);}
+inline Color4B operator/(Color4B a, unsigned char b) {return color4b(a.r/b, a.g/b, a.b/b, a.a/b);}
 inline Color4B operator-(Color4B a) {return color4b(-a.r, -a.g, -a.b, -a.a);}
-inline Color4B &operator*=(Color4B &a, u8 b) {return (a = a*b);}
-inline Color4B &operator/=(Color4B &a, u8 b) {return (a = a/b);}
+inline Color4B &operator*=(Color4B &a, unsigned char b) {return (a = a*b);}
+inline Color4B &operator/=(Color4B &a, unsigned char b) {return (a = a/b);}
 inline Color4B &operator+=(Color4B &a, Color4B b) {return (a = a + b);}
 inline Color4B &operator-=(Color4B &a, Color4B b) {return (a = a - b);}
 
@@ -243,9 +245,5 @@ inline bool point_in_rect(V2 point, Rect rect, float theta) {
 				    -theta), rect);
 }
 
-// This is a little random but I can't think of a better place for it:
-bool is_power_of_2(int n) {
-  while ((n % 2) == 0) n /= 2;
-  if (n > 1) return false;
-  return true;
-}
+#define CSP_MATH_CPP
+#endif

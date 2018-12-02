@@ -1,4 +1,5 @@
-#define DYNAMIC_ARRAY_START_SIZE 32
+#ifndef CSP_DYNAMIC_ARRAY_CPP
+#define CSP_DYNAMIC_ARRAY_START_SIZE 32
 inline void _dynamic_array_allocate(void **data_ret, int *items_ret,
                           int start_items, int item_size) {
   int bytes = start_items * item_size;
@@ -25,7 +26,7 @@ inline void _dynamic_array_deallocate(void **data_ret) {
 
 template <class T> struct Dynamic_Array {
 public:
-  Dynamic_Array(int start_size = DYNAMIC_ARRAY_START_SIZE, bool deallocate = true) {
+  Dynamic_Array(int start_size = CSP_DYNAMIC_ARRAY_START_SIZE, bool deallocate = true) {
     initialize(start_size, deallocate);
   }
   Dynamic_Array(T *initial_items, int num_items) {
@@ -42,7 +43,7 @@ public:
   T *data;
 
   // NOTE: Call this if the constructor doesn't get called:
-  inline void initialize(int start_size = DYNAMIC_ARRAY_START_SIZE, bool deallocate = true) {
+  inline void initialize(int start_size = CSP_DYNAMIC_ARRAY_START_SIZE, bool deallocate = true) {
     length = 0;
     _dynamic_array_allocate((void **)&data, &allocated_items,
 			    start_size, sizeof(T));
@@ -219,3 +220,6 @@ public:
     insertion_sort(0, length - 1, compare_function);
   }
 };
+
+#define CSP_DYNAMIC_ARRAY_CPP
+#endif

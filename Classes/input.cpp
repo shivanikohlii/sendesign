@@ -4,27 +4,6 @@
 
 #define KeyCode cocos2d::EventKeyboard::KeyCode
 
-struct Input_Button {
-  bool is_down;
-  bool just_pressed;
-};
-enum Mouse_Button_Code {
-  MOUSE_LEFT = 0, MOUSE_RIGHT = 1, NUM_MOUSE_BUTTONS = 2
-};
-struct Mouse {
-  union {
-    struct {Input_Button left, right;};
-    Input_Button mouse_buttons[NUM_MOUSE_BUTTONS];
-  };
-  float x;
-  float y;
-  float scroll;
-} mouse;
-
-Input_Button key[256] = {};
-Dynamic_Array<uchar> keys_just_pressed;
-Dynamic_Array<uchar> characters_typed;
-
 // NOTE: These are our own "custom" codes for every keycode that doesn't have a direct
 // character. Every other keycode is represented by its corresponding character.
 // For example:
@@ -42,51 +21,38 @@ Dynamic_Array<uchar> characters_typed;
 // there is also a key for shift (KEY_SHIFT) which will be set as down if either
 // KEY_LEFT_SHIFT or KEY_RIGHT_SHIFT are down
 
-enum Noncharacter_Key_Code {
-  KEY_SPACE = ' ', KEY_ENTER = '\n', KEY_SHIFT = 128, KEY_ALT = 129,
-  KEY_CTRL = 130, KEY_BACKSPACE = 131,
-  KEY_INSERT = 132, KEY_HOME = 133, KEY_PAGE_UP = 134, KEY_DELETE = 135,
-  KEY_END = 136, KEY_PG_DOWN = 137, KEY_RIGHT = 138, KEY_UP = 139,
-  KEY_LEFT = 140, KEY_DOWN = 141, KEY_PRINT_SCREEN = 142, KEY_SCROLL_LOCK = 143,
-  KEY_PAUSE = 144, KEY_F1 = 145, KEY_F2 = 146, KEY_F3 = 147, KEY_F4 = 148, KEY_F5 = 149,
-  KEY_F6 = 150, KEY_F7 = 151, KEY_F8 = 152, KEY_F9 = 153, KEY_F10 = 154, KEY_F11 = 155,
-  KEY_F12 = 156, KEY_CAPS_LOCK = 157, KEY_ESCAPE = 158, KEY_LEFT_SHIFT = 159,
-  KEY_RIGHT_SHIFT = 160, KEY_LEFT_CTRL = 161, KEY_RIGHT_CTRL = 162,
-  KEY_LEFT_ALT = 163, KEY_RIGHT_ALT = 164,
-};
-
 void reset_inputs() {
-  mouse.scroll = 0.0f;
-  mouse.left.just_pressed = false;
-  mouse.right.just_pressed = false;
-  for (int i = 0; i < keys_just_pressed.length; i++) {
-    uchar c = keys_just_pressed[i];
-    key[c].just_pressed = false;
+  csp->mouse.scroll = 0.0f;
+  csp->mouse.left.just_pressed = false;
+  csp->mouse.right.just_pressed = false;
+  for (int i = 0; i < csp->keys_just_pressed.length; i++) {
+    uchar c = csp->keys_just_pressed[i];
+    csp->key[c].just_pressed = false;
   }
-  characters_typed.length = 0;
-  keys_just_pressed.length = 0;
+  csp->characters_typed.length = 0;
+  csp->keys_just_pressed.length = 0;
 }
 void on_mouse_down(cocos2d::Event *event) {
   cocos2d::EventMouse *mouse_event = (cocos2d::EventMouse *)event;
   if ((int)mouse_event->getMouseButton() == 1) {
-    mouse.right.is_down = mouse.right.just_pressed = true;
+    csp->mouse.right.is_down = csp->mouse.right.just_pressed = true;
   } else if ((int)mouse_event->getMouseButton() == 0) {
-    mouse.left.is_down = mouse.left.just_pressed = true;
+    csp->mouse.left.is_down = csp->mouse.left.just_pressed = true;
   }
 }
 void on_mouse_up(cocos2d::Event *event) {
   cocos2d::EventMouse *mouse_event = (cocos2d::EventMouse *)event;
-  if ((int)mouse_event->getMouseButton() == 1) mouse.right.is_down = false;
-  else if ((int)mouse_event->getMouseButton() == 0) mouse.left.is_down = false;
+  if ((int)mouse_event->getMouseButton() == 1) csp->mouse.right.is_down = false;
+  else if ((int)mouse_event->getMouseButton() == 0) csp->mouse.left.is_down = false;
 }
 void on_mouse_move(cocos2d::Event *event) {
   cocos2d::EventMouse *mouse_event = (cocos2d::EventMouse *)event;
-  mouse.x = mouse_event->getCursorX();
-  mouse.y = mouse_event->getCursorY();
+  csp->mouse.x = mouse_event->getCursorX();
+  csp->mouse.y = mouse_event->getCursorY();
 }
 void on_mouse_scroll(cocos2d::Event *event) {
   cocos2d::EventMouse *mouse_event = (cocos2d::EventMouse *)event;
-  mouse.scroll = mouse_event->getScrollY();
+  csp->mouse.scroll = mouse_event->getScrollY();
 }
 
 // NOTE: This process_keycode procedure may seem ridiculous,
@@ -173,7 +139,7 @@ void on_key_pressed(KeyCode key_code, cocos2d::Event *event) {
   if (process_keycode(key_code, &c)) {
     if (c < 128) {
       uchar str_char = c;
-      if (key[KEY_SHIFT].is_down) {
+      if (csp->key[KEY_SHIFT].is_down) {
 	if (str_char >= 'a' && str_char <= 'z') {
 	  str_char += 'A' - 'a';
 	} else {
@@ -203,33 +169,33 @@ void on_key_pressed(KeyCode key_code, cocos2d::Event *event) {
 	}
       }
 
-      characters_typed.add(str_char);
+      csp->characters_typed.add(str_char);
     } else {
       switch (key_code) {
       case KeyCode::KEY_LEFT_SHIFT:
       case KeyCode::KEY_RIGHT_SHIFT:
-	keys_just_pressed.add(KEY_SHIFT);
-	key[KEY_SHIFT].just_pressed = true;
-	key[KEY_SHIFT].is_down = true;
+	csp->keys_just_pressed.add(KEY_SHIFT);
+	csp->key[KEY_SHIFT].just_pressed = true;
+	csp->key[KEY_SHIFT].is_down = true;
 	break;
       case KeyCode::KEY_LEFT_ALT:
       case KeyCode::KEY_RIGHT_ALT:
-	keys_just_pressed.add(KEY_ALT);
-	key[KEY_ALT].just_pressed = true;
-	key[KEY_ALT].is_down = true;
+	csp->keys_just_pressed.add(KEY_ALT);
+	csp->key[KEY_ALT].just_pressed = true;
+	csp->key[KEY_ALT].is_down = true;
 	break;
       case KeyCode::KEY_LEFT_CTRL:
       case KeyCode::KEY_RIGHT_CTRL:
-	keys_just_pressed.add(KEY_CTRL);
-	key[KEY_CTRL].just_pressed = true;
-	key[KEY_CTRL].is_down = true;
+	csp->keys_just_pressed.add(KEY_CTRL);
+	csp->key[KEY_CTRL].just_pressed = true;
+	csp->key[KEY_CTRL].is_down = true;
 	break;
       }
     }
     
-    keys_just_pressed.add(c);
-    key[c].just_pressed = true;
-    key[c].is_down = true;
+    csp->keys_just_pressed.add(c);
+    csp->key[c].just_pressed = true;
+    csp->key[c].is_down = true;
   }
 }
 void on_key_released(KeyCode key_code, cocos2d::Event *event) {
@@ -237,28 +203,28 @@ void on_key_released(KeyCode key_code, cocos2d::Event *event) {
   if (process_keycode(key_code, &c)) {
     switch (key_code) {
     case KeyCode::KEY_LEFT_SHIFT:
-      if (!key[KEY_RIGHT_SHIFT].is_down) key[KEY_SHIFT].is_down = false;
+      if (!csp->key[KEY_RIGHT_SHIFT].is_down) csp->key[KEY_SHIFT].is_down = false;
       break;
     case KeyCode::KEY_RIGHT_SHIFT:
-      if (!key[KEY_LEFT_SHIFT].is_down) key[KEY_SHIFT].is_down = false;
+      if (!csp->key[KEY_LEFT_SHIFT].is_down) csp->key[KEY_SHIFT].is_down = false;
       break;
     case KeyCode::KEY_LEFT_ALT:
-      if (!key[KEY_RIGHT_ALT].is_down) key[KEY_ALT].is_down = false;
+      if (!csp->key[KEY_RIGHT_ALT].is_down) csp->key[KEY_ALT].is_down = false;
       break;
     case KeyCode::KEY_RIGHT_ALT:
-      if (!key[KEY_LEFT_ALT].is_down) key[KEY_ALT].is_down = false;
+      if (!csp->key[KEY_LEFT_ALT].is_down) csp->key[KEY_ALT].is_down = false;
       break;
     case KeyCode::KEY_LEFT_CTRL:
-      if (!key[KEY_RIGHT_CTRL].is_down) key[KEY_CTRL].is_down = false;
+      if (!csp->key[KEY_RIGHT_CTRL].is_down) csp->key[KEY_CTRL].is_down = false;
       break;
     case KeyCode::KEY_RIGHT_CTRL:
-      if (!key[KEY_LEFT_CTRL].is_down) key[KEY_CTRL].is_down = false;
+      if (!csp->key[KEY_LEFT_CTRL].is_down) csp->key[KEY_CTRL].is_down = false;
       break;
     }
-    key[c].is_down = false;
+    csp->key[c].is_down = false;
   }
 }
 
 void character_callback(GLFWwindow* window, unsigned int codepoint) {
-  if (codepoint <= UCHAR_MAX) characters_typed.add(codepoint);
+  if (codepoint <= UCHAR_MAX) csp->characters_typed.add(codepoint);
 }

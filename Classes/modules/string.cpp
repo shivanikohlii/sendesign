@@ -1,3 +1,5 @@
+#ifndef CSP_STRING_CPP
+
 //
 // Text Input String Operations:
 //
@@ -26,14 +28,6 @@ inline String make_string(char *str, int length) {
 
 #define _S(str) (make_string(str, sizeof(str) - 1, sizeof(str)))
 #define fixed_str(str) (make_string(str, 0, sizeof(str)))
-
-// NOTE: This is supposed to be a fast std::string to cstring comparison which
-// guarantees there will be no cstring to std::string conversions or
-// vice versa as well as any other std C++ nonsense.
-inline bool match(const std::string &str1, const char *str2) {
-  int str1_length = str1.length();
-  return strncmp(str1.data(), str2, str1_length) == 0 && str2[str1_length] == 0;
-}
 
 inline bool terminate_with_null(String *str) {
   if (str->length < str->memory_size) {
@@ -144,7 +138,11 @@ int get_start_index_of_line(String str, int line) {
   for (int i = 0; i < str.length; i++) {
     if (str.str[i] == '\n') {
       current_line++;
-      if (current_line == line) return min_val(i + 1, str.length - 1); 
+      if (current_line == line) {
+	int v0 = i + 1;
+	int v1 = str.length - 1;
+	return (v0 > v1) ? v1 : v0;
+      }
     }
   }
   return 0;
@@ -195,3 +193,6 @@ int move_down_a_line(String str, int index) {
   assert(index <= str.length);
   return index;
 }
+
+#define CSP_STRING_CPP
+#endif

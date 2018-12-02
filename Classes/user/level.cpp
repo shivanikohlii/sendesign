@@ -27,15 +27,15 @@ bool save_level(char *level_name) {
   FILE *file = fopen(full_level_path, "w"); //@CHECK
   if (!file) return false;
   
-  int error = fprintf(file, "%i ", entity_manager.length);
+  int error = fprintf(file, "%i ", csp->entity_manager.length);
   if (error < 0) {
     fclose(file);
     return false;
   }
-  for (int i = 0; i < entity_manager.length; i++) {
-    Entity *e = entity_manager[i];
-    error = fprintf(file, "%i %f %f %f %f %f %hhu %hhu %hhu %hhu %i %i ", e->texture, e->x, e->y, e->w, e->h, e->theta, e->color.r, e->color.g, e->color.b, e->color.a, e->z_order, e->invisible ? 1 : 0);
-    if (error < 0) {
+  for (int i = 0; i < csp->entity_manager.length; i++) {
+    Entity *e = csp->entity_manager[i];
+    bool success = save_entity(file, e);
+    if (!success) {
       fclose(file);
       return false;
     }
@@ -51,9 +51,7 @@ bool load_level(char *level_name) {
   FILE *file = fopen(full_level_path, "r");
   if (!file) return false;
   strncpy(current_level_name, level_name, sizeof(current_level_name));
-  while (entity_manager.length > 0) delete_entity(entity_manager[0]);
-  extern Entity *selected_entity;
-  selected_entity = NULL;
+  while (csp->entity_manager.length > 0) delete_entity(csp->entity_manager[0]);
   
   int num_entities = 0;
   int error = fscanf(file, "%i ", &num_entities);
@@ -64,15 +62,18 @@ bool load_level(char *level_name) {
   for (int i = 0; i < num_entities; i++) {
     Entity e = {};
     int invisible = 0;
-    error = fscanf(file, "%i %f %f %f %f %f %hhu %hhu %hhu %hhu %i %i ", &e.texture, &e.x, &e.y, &e.w, &e.h, &e.theta, &e.color.r, &e.color.g, &e.color.b, &e.color.a, &e.z_order, &invisible);
-    if (error < 0) {
+    bool success = load_entity(file, &e);
+    if (!success) {
       fclose(file);
       return false;
     }
-    e.invisible = invisible != 0;
     create_entity(&e);
   }
   fclose(file);
+
+#ifdef _DEBUG
+  editor.selected_entity = NULL;
+#endif
 
   return true;
 }
