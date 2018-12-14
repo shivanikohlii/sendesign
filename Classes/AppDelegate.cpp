@@ -205,22 +205,33 @@ int load_sound(char *name) {
   sounds.add(sound);
   return sounds.length - 1;
 }
-inline void __play_music(int music_index, bool loop) {
+inline int __play_music(int music_index, bool loop) {
   assert(music_index >= 0);
   assert(music_index < songs.length);
-  cocos2d::experimental::AudioEngine::play2d(songs[music_index].filename, loop);
+  return cocos2d::experimental::AudioEngine::play2d(songs[music_index].filename, loop);
 }
-inline void __play_sound(int sound_index, bool loop) {
+inline int __play_sound(int sound_index, bool loop) {
   assert(sound_index >= 0);
   assert(sound_index < sounds.length);
-  cocos2d::experimental::AudioEngine::play2d(sounds[sound_index].filename, loop);
+  return cocos2d::experimental::AudioEngine::play2d(sounds[sound_index].filename, loop);
 }
-inline void play_music(int music_index, bool loop = true) {
-  __play_music(music_index, loop);
+inline int play_music(int music_index, bool loop = true) {
+  return __play_music(music_index, loop);
 }
-inline void play_sound(int sound_index, bool loop = false) {
-  __play_sound(sound_index, loop);
+inline int play_sound(int sound_index, bool loop = false) {
+  return __play_sound(sound_index, loop);
 }
+inline void pause_audio(int audio_id) {
+  cocos2d::experimental::AudioEngine::pause(audio_id);
+}
+inline void stop_audio(int audio_id) {
+  cocos2d::experimental::AudioEngine::stop(audio_id);
+}
+inline void resume_audio(int audio_id) {
+  cocos2d::experimental::AudioEngine::resume(audio_id);
+}
+
+
 
 //
 // Immediate Mode Graphics:
@@ -469,7 +480,7 @@ void hotload_code() {
       if (!user_main_loop) printf("ERROR: Couldn't find '__main_loop()' in game.dll\n");
       int (*load_csp_lib_functions)(CSP_Library_Load) = (int(*)(CSP_Library_Load))GetProcAddress(game_code_library, "__load_csp_lib_functions");
       if (load_csp_lib_functions) {
-		  CSP_Library_Load lib_load = {};
+	CSP_Library_Load lib_load = {};
 	lib_load.csp = csp;
 	lib_load.draw_rect = __draw_rect;
 	lib_load.get_text_rect = __get_text_rect;
@@ -481,6 +492,9 @@ void hotload_code() {
 	lib_load.load_sound = load_sound;
 	lib_load.play_music = __play_music;
 	lib_load.play_sound = __play_sound;
+	lib_load.pause_audio = pause_audio;
+	lib_load.stop_audio = stop_audio;
+	lib_load.resume_audio = resume_audio;
 	lib_load.add_action_binding = add_button_binding;
 	lib_load.action_button = action_button;
 	lib_load.ui_begin = ui_begin;

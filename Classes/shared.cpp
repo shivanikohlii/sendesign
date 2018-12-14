@@ -40,8 +40,8 @@ struct Text_Information {
 struct UI_State {
   float x = 0.0f;
   float y = 1.0f;
-  float width = 0.2f;
-  float height = 0.035f;
+  float width = 0.25f;
+  float height = 0.045f;
   bool prev_screen_draw = false;
   bool has_keyboard_input = false;
   int caret_index = 0;
@@ -93,8 +93,11 @@ typedef int (*__load_texture_from_file_fun_type)(char *);
 typedef int (*__load_font_fun_type)(char *, int);
 typedef int (*__load_music_fun_type)(char *);
 typedef int (*__load_sound_fun_type)(char *);
-typedef void (*__play_music_fun_type)(int, bool);
-typedef void (*__play_sound_fun_type)(int, bool);
+typedef int (*__play_music_fun_type)(int, bool);
+typedef int (*__play_sound_fun_type)(int, bool);
+typedef void (*__pause_audio_fun_type)(int);
+typedef void (*__stop_audio_fun_type)(int);
+typedef void (*__resume_audio_fun_type)(int);
 typedef void (*__add_action_binding_fun_type)(char *, Input_Button *);
 typedef Input_Button (*__action_button_fun_type)(char *);
 typedef void (*__ui_begin_fun_type)(float, float);
@@ -120,6 +123,9 @@ struct CSP_Library_Load {
   __load_sound_fun_type load_sound;
   __play_music_fun_type play_music;
   __play_sound_fun_type play_sound;
+  __pause_audio_fun_type pause_audio;
+  __stop_audio_fun_type stop_audio;
+  __resume_audio_fun_type resume_audio;
   __add_action_binding_fun_type add_action_binding;
   __action_button_fun_type action_button;
   __ui_begin_fun_type ui_begin;

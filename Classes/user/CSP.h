@@ -37,6 +37,9 @@ __load_texture_from_file_fun_type load_texture_from_file = NULL;
 __load_font_fun_type load_font = NULL;
 __load_music_fun_type load_music = NULL;
 __load_sound_fun_type load_sound = NULL;
+__pause_audio_fun_type pause_audio = NULL;
+__stop_audio_fun_type stop_audio = NULL;
+__resume_audio_fun_type resume_audio = NULL;
 __play_music_fun_type __play_music = NULL;
 __play_sound_fun_type __play_sound = NULL;
 __add_action_binding_fun_type add_action_binding = NULL;
@@ -70,11 +73,11 @@ inline int load_texture(unsigned char *data, int width, int height) {
 inline int load_texture(char *name) {
   return load_texture_from_file(name);
 }
-inline void play_music(int music_index, bool loop = true) {
-  __play_music(music_index, loop);
+inline int play_music(int music_index, bool loop = true) {
+  return __play_music(music_index, loop);
 }
-inline void play_sound(int sound_index, bool loop = false) {
-  __play_sound(sound_index, loop);
+inline int play_sound(int sound_index, bool loop = false) {
+  return __play_sound(sound_index, loop);
 }
 inline bool text_field(char *name, String *str, bool multiline = false, char *hash_string = NULL) {
   return __text_field(name, str, multiline, hash_string);
@@ -110,6 +113,9 @@ extern "C" __declspec(dllexport) int __load_csp_lib_functions(CSP_Library_Load t
   load_font = to_load.load_font;
   load_music = to_load.load_music;
   load_sound = to_load.load_sound;
+  pause_audio = to_load.pause_audio;
+  stop_audio = to_load.stop_audio;
+  resume_audio = to_load.resume_audio;
   __play_music = to_load.play_music;
   __play_sound = to_load.play_sound;
   add_action_binding = to_load.add_action_binding;
@@ -189,7 +195,7 @@ extern "C" __declspec(dllexport)  void __main_loop() {
       }
     }
     
-    ui_begin(0.8f, 1.0f);
+    ui_begin(1.0f - csp->ui_state.width, 1.0f);
 
     text("Editor Panel:");
     

@@ -83,12 +83,6 @@ void problem_loading(char *msg) {
 #endif
 }
 
-struct Document {
-  bool is_resume;
-  bool is_fancy;
-  // Other Stuff...
-};
-
 bool initialize() {
   auto visibleSize = cocos2d::Director::getInstance()->getVisibleSize();
   cocos2d::Vec2 origin = cocos2d::Director::getInstance()->getVisibleOrigin();
@@ -97,7 +91,7 @@ bool initialize() {
   
   main_scene->addChild(screen_layer, 1000);
 
-  load_font("Inconsolata-Regular.ttf", 16);
+  load_font("Inconsolata-Regular.ttf", 23);
   load_font("AndBasR.ttf", 24);
 
   { // Make Blank White Texture:
